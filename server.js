@@ -17,7 +17,9 @@ const cfg = 載入設定('./設定.json');
 if (process.env.OAV_DB) cfg.db.database = process.env.OAV_DB;   // 測試用：改連其他資料庫
 
 const app = express();
-const pool = new sql.ConnectionPool(cfg.db).connect();
+// 連線失敗不讓程序崩潰：清掉失敗的連線，下一個請求再重連（回應 503 可重送）
+let pool;
+const 取連線 = () => pool ??= new sql.ConnectionPool(cfg.db).connect().catch(e => { pool = null; throw e; });
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
@@ -26,7 +28,7 @@ app.post('/api/:proc', async (req, res) => {
   const proc = req.params.proc;
   if (!/^[\p{L}\p{N}_]{1,50}$/u.test(proc)) return res.status(400).json({ 錯誤: '程序名稱不合法' });
   try {
-    const r = await (await pool).request()
+    const r = await (await 取連線()).request()
       .input('JSON', sql.NVarChar(sql.MAX), JSON.stringify(req.body ?? {}))
       .output('回應', sql.NVarChar(sql.MAX))
       .execute(`api.[${proc}]`);

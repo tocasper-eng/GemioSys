@@ -23,6 +23,16 @@ npm test                         # 在獨立的 <資料庫>_test 跑端對端測
 ```
 `npm run db:deploy` 執行結構遷移（`01_遷移.sql`）並更新觸發程序/視圖/預存程序/功能表，不清除資料。
 
+## 雲端部署（Zeabur）
+正式網址：**https://wms.zeabur.app**（Zeabur 專案 `oav-wms`，只跑 Node 閘道；資料庫仍是 `設定.json` 中的 SQL Server）。
+- 雲端沒有 `設定.json`，改用環境變數 `DB_SERVER`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`（在 Zeabur 服務的 Variables 設定）。
+- 更新版本：先 commit，再用乾淨副本上傳（避免把 `設定.json` 傳上去）：
+  ```bash
+  git archive HEAD | tar -x -C <暫存目錄> && cd <暫存目錄>
+  npx zeabur deploy --service-id 6abd2d1aaa61051740e6eddd --environment-id 6abd2d0a6a5a32a7a9b37fab -i=false
+  ```
+- 資料庫結構異動仍在本機執行 `npm run db:deploy`。
+
 ## 架構
 ```
 手機 / 瀏覽器 (PWA)                Node 閘道 (server.js)               SQL Server
