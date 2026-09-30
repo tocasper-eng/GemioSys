@@ -267,6 +267,7 @@ CREATE TABLE 生產工單主檔 (
     入庫數量 int NOT NULL CONSTRAINT DF_生產工單主檔_入庫 DEFAULT 0,
     物管編號 nvarchar(20) NOT NULL CONSTRAINT FK_生產工單主檔_物管 REFERENCES 物管資料維護(物管編號),
     備註說明 nvarchar(20) NULL,
+    產品物料 nvarchar(20) NOT NULL CONSTRAINT FK_生產工單主檔_產品 REFERENCES 物料資料維護(物料編號),  -- 畫面顯示順序見 系統欄位設定
     CONSTRAINT CK_生產工單主檔_超入 CHECK (入庫數量 BETWEEN 0 AND 生產數量)
 );
 CREATE TABLE 生產工單明細 (

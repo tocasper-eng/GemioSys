@@ -9,12 +9,17 @@ OAV WMS：ERP 庫存管理系統（PWA + SQL Server）。本檔給在此 repo �
 
 ## 常用指令
 ```bash
-npm run db:deploy   # 重新部署 02~06（CREATE OR ALTER；不動資料表）
+npm run db:deploy   # 執行 01_遷移 + 重新部署 02~06（不清資料）
 npm run db:reset    # 刪除並重建整個資料庫（會清空資料！）
 npm start           # http://localhost:3000
 npm test            # 需伺服器已啟動；過帳 + 驗證準則端對端測試，必須全綠
 ```
 連線設定在 `設定.json`（已 gitignore，範本為 `設定.example.json`）。**絕不可把 設定.json 或密碼提交到 git。**
+
+## 資料表結構變更（重要）
+- `01_資料表.sql` 只在新建資料庫時執行；既有資料庫靠 `01_遷移.sql`（可重複執行、先判斷 `COL_LENGTH` 再 `ALTER`）。
+- 改資料表時**兩處都要改**：`01_資料表.sql`（新建用）與 `01_遷移.sql`（升級用），兩者結果必須一致。
+- `ALTER ADD` 的欄位會排在表尾；畫面順序用 `系統欄位設定.顯示順序` 調整（預設 = column_id × 10）。
 
 ## SQL 撰寫注意
 - 資料庫定序 `Chinese_Taiwan_Stroke_CI_AS`（不分大小寫）：變數 `@d` 與 `@D` 視為同一個，會衝突。
@@ -26,12 +31,11 @@ npm test            # 需伺服器已啟動；過帳 + 驗證準則端對端測�
 
 ## 完成一段工作前
 1. `npm run db:deploy`（或 `db:reset`）成功
-2. `npm test` 全部 ✔（含 `系統驗證結果` 11 條違規筆數為 0）
+2. `npm test` 全部 ✔（含 `系統驗證結果` 12 條違規筆數為 0）
 3. 更新 README.md / CLAUDE.md / SKILL.md / AGENT.md 中受影響的段落
 4. commit 並 push 到 `tocasper-eng/oav_wms`，重要里程碑建立 GitHub Release
 
 ## 規格已知限制（待使用者決定）
-- `生產工單主檔` 無「產品物料」欄位 → 在途明細無法列出工單完工的供給。
 - `物料預留` 沒有沖銷機制，預留數量永遠列為需求。
 - 尚無「庫存不可為負」檢核。
 - `銷售組織維護` / `採購組織維護` 額外加了可空的 `工廠代碼`，讓未交訂單/採購能歸屬工廠（每日供需餘額依工廠計算需要）。

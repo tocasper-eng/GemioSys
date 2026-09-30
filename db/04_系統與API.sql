@@ -34,6 +34,9 @@ CREATE TABLE 系統欄位設定 (
     選單欄位 sysname NULL,
     CONSTRAINT PK_系統欄位設定 PRIMARY KEY (資料表, 欄位名稱)
 );
+/* 畫面欄位顯示順序（預設 = column_id × 10），讓 ALTER 新增在表尾的欄位可排到適當位置 */
+IF COL_LENGTH(N'dbo.系統欄位設定', N'顯示順序') IS NULL
+    ALTER TABLE 系統欄位設定 ADD 顯示順序 int NULL;
 IF OBJECT_ID(N'dbo.系統錯誤訊息') IS NULL
 CREATE TABLE 系統錯誤訊息 (
     約束名稱 sysname NOT NULL CONSTRAINT PK_系統錯誤訊息 PRIMARY KEY,
@@ -53,7 +56,7 @@ GO
 /* ---------- 欄位中繼資料（由 sys.* 推導） ---------- */
 CREATE OR ALTER VIEW api.欄位定義 AS
 SELECT o.name AS 資料表,
-       c.column_id AS 欄位順序,
+       ISNULL(s.顯示順序, c.column_id * 10) AS 欄位順序,
        c.name AS 欄位名稱,
        ty.name AS 資料型別,
        CASE WHEN ty.name IN (N'nvarchar', N'nchar') THEN IIF(c.max_length = -1, -1, c.max_length / 2)
@@ -114,7 +117,7 @@ BEGIN
         SET @msg = N'「' + ISNULL(NULLIF(@欄, N''), @表) + N'」不符合檢核條件';
     ELSE IF @n = 547        SET @msg = N'資料檢核失敗：' + @msg;
     ELSE IF @n IN (2627, 2601) SET @msg = N'資料重複：' + @msg;
-    ELSE IF @n = 515        SET @msg = N'必填欄位未輸入：' + @msg;
+    ELSE IF @n = 515        SET @msg = N'「' + @欄 + N'」為必填欄位';
     THROW 50000, @msg, 1;
 END
 GO

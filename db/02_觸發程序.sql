@@ -256,6 +256,8 @@ BEGIN
     IF EXISTS (SELECT 1 FROM inserted i JOIN 工單入庫主檔 h ON h.入庫編號 = i.入庫編號
                JOIN 生產工單主檔 o ON o.工單編號 = i.工單編號 WHERE o.工廠代碼 <> h.工廠代碼)
         THROW 50004, N'工單不屬於單據的工廠', 1;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN 生產工單主檔 o ON o.工單編號 = i.工單編號 WHERE o.產品物料 <> i.物料編號)
+        THROW 50005, N'入庫物料與工單產品物料不一致', 1;
     /* 過帳：生產工單主檔.入庫數量 = SUM(工單入庫明細.入庫數量) 以 工單編號 */
     WITH k AS (SELECT 工單編號 FROM inserted UNION SELECT 工單編號 FROM deleted)
     UPDATE o SET 入庫數量 = ISNULL((SELECT SUM(d.入庫數量) FROM 工單入庫明細 d WHERE d.工單編號 = o.工單編號), 0)

@@ -23,7 +23,7 @@ const cfg = 載入設定('../設定.json').db;
   const dir = __dirname;
   const files = fs.readdirSync(dir).filter(f => /^\d\d_.*\.sql$/.test(f)).sort();
   for (const f of files) {
-    if (f.startsWith('01_') && !isNew) { console.log('略過', f, '(資料表已存在，重建請加 --reset)'); continue; }
+    if (f === '01_資料表.sql' && !isNew) { console.log('略過', f, '(資料表已存在，重建請加 --reset)'); continue; }
     const batches = fs.readFileSync(path.join(dir, f), 'utf8').replace(/^﻿/, '').split(/^\s*GO\s*$/im).filter(b => b.trim());
     for (const b of batches) {
       try { await pool.request().batch(b); }

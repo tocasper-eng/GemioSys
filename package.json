@@ -1,6 +1,6 @@
 {
   "name": "oav-erp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OAV ERP 庫存管理系統（PWA + SQL Server）",
   "main": "server.js",
   "scripts": {

@@ -11,8 +11,8 @@
 
 ## 工作流程
 1. 讀 `CLAUDE.md` 的注意事項（定序不分大小寫、JSON 中文路徑要加引號）。
-2. 修改 `db/*.sql`（02 之後的物件皆為 `CREATE OR ALTER`，可重複部署）。
-3. `npm run db:deploy`；改到資料表時用 `npm run db:reset`（**會清空資料，先確認**）。
+2. 修改 `db/*.sql`（02 之後的物件皆為 `CREATE OR ALTER`，可重複部署）。改資料表結構要同時改 `01_資料表.sql` 與 `01_遷移.sql`，不要靠 reset 升級。
+3. `npm run db:deploy`（會執行遷移）；`npm run db:reset` 會清空資料，只在確認後使用。
 4. 啟動 `npm start`，執行 `npm test`，必須全部 ✔。
 5. 更新 README.md / CLAUDE.md / SKILL.md / AGENT.md。
 6. commit（訊息說明「為什麼」），push 到 `tocasper-eng/oav_wms`；里程碑建立 Release。
