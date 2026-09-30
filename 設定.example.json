@@ -1,0 +1,12 @@
+{
+  "port": 3000,
+  "db": {
+    "server": "<SQL Server 主機>",
+    "port": 1433,
+    "user": "<帳號>",
+    "password": "<密碼>",
+    "database": "oav00",
+    "options": { "encrypt": false, "trustServerCertificate": true },
+    "pool": { "max": 20 }
+  }
+}

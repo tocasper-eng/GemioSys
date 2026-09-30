@@ -1,0 +1,37 @@
+# CLAUDE.md
+
+OAV WMS：ERP 庫存管理系統（PWA + SQL Server）。本檔給在此 repo 工作的 Claude / AI 助理。
+
+## 最高原則
+- **極大化 SQL Server、極少化前端**：能用 T-SQL 物件（約束、觸發程序、視圖、函數、預存程序）解決的，絕不寫在前端或 Node。
+- `server.js` 只轉送 `POST /api/<程序>` → `EXEC api.<程序> @JSON, @回應 OUTPUT`，不得加入商業邏輯。
+- 前端 (`public/app.js`) 只依 `api.畫面定義` 繪製畫面；新增功能優先改 `系統功能表` / `系統欄位設定`，而非改 JS。
+
+## 常用指令
+```bash
+npm run db:deploy   # 重新部署 02~06（CREATE OR ALTER；不動資料表）
+npm run db:reset    # 刪除並重建整個資料庫（會清空資料！）
+npm start           # http://localhost:3000
+npm test            # 需伺服器已啟動；過帳 + 驗證準則端對端測試，必須全綠
+```
+連線設定在 `設定.json`（已 gitignore，範本為 `設定.example.json`）。**絕不可把 設定.json 或密碼提交到 git。**
+
+## SQL 撰寫注意
+- 資料庫定序 `Chinese_Taiwan_Stroke_CI_AS`（不分大小寫）：變數 `@d` 與 `@D` 視為同一個，會衝突。
+- JSON 路徑含中文鍵必須加引號：`N'$."功能代碼"'`，不可寫 `N'$.功能代碼'`。
+- 觸發程序一律以集合處理（inserted/deleted 多列），過帳用「以來源鍵重算 SUM」，不要用差額加減。
+- 超量檢核放在來源表 CHECK 條件；錯誤訊息中文化加在 `系統錯誤訊息`（以約束名稱比對）。
+- `api.*` 寫入類程序須保持冪等（`系統請求紀錄` + `sp_getapplock`）。
+- 業務規則錯誤 `THROW 50000~50998`（前端不重送）；可重送錯誤 `50999`。
+
+## 完成一段工作前
+1. `npm run db:deploy`（或 `db:reset`）成功
+2. `npm test` 全部 ✔（含 `系統驗證結果` 11 條違規筆數為 0）
+3. 更新 README.md / CLAUDE.md / SKILL.md / AGENT.md 中受影響的段落
+4. commit 並 push 到 `tocasper-eng/oav_wms`，重要里程碑建立 GitHub Release
+
+## 規格已知限制（待使用者決定）
+- `生產工單主檔` 無「產品物料」欄位 → 在途明細無法列出工單完工的供給。
+- `物料預留` 沒有沖銷機制，預留數量永遠列為需求。
+- 尚無「庫存不可為負」檢核。
+- `銷售組織維護` / `採購組織維護` 額外加了可空的 `工廠代碼`，讓未交訂單/採購能歸屬工廠（每日供需餘額依工廠計算需要）。

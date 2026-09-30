@@ -1,0 +1,21 @@
+{
+  "name": "oav-erp",
+  "version": "0.1.0",
+  "description": "OAV ERP 庫存管理系統（PWA + SQL Server）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "db:deploy": "node db/部署.js",
+    "db:reset": "node db/部署.js --reset",
+    "test": "node tests/過帳測試.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "mssql": "^12.7.2"
+  },
+  "repository": "github:tocasper-eng/oav_wms"
+}
