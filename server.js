@@ -1,6 +1,17 @@
 // OAV ERP 閘道：只負責把 POST /api/<程序名> 的 JSON 轉交給 SQL Server 的 api.<程序名>，
 // 所有商業邏輯都在資料庫。
-const 載入設定 = f => { try { return require(f); } catch { console.error('找不到 設定.json：請複製 設定.example.json 為 設定.json 並填入連線資訊'); process.exit(1); } };
+// 雲端部署（Zeabur 等）沒有 設定.json 時，改用環境變數 DB_SERVER / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
+const 環境設定 = () => ({
+  port: 3000,
+  db: {
+    server: process.env.DB_SERVER, port: Number(process.env.DB_PORT || 1433),
+    user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME,
+    options: { encrypt: false, trustServerCertificate: true }, pool: { max: 20 }
+  }
+});
+const 載入設定 = f => { try { return require(f); } catch {
+  if (process.env.DB_SERVER) return 環境設定();
+  console.error('找不到 設定.json：請複製 設定.example.json 為 設定.json 並填入連線資訊，或設定環境變數 DB_SERVER 等'); process.exit(1); } };
 const express = require('express'), sql = require('mssql'), path = require('path');
 const cfg = 載入設定('./設定.json');
 if (process.env.OAV_DB) cfg.db.database = process.env.OAV_DB;   // 測試用：改連其他資料庫
