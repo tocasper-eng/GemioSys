@@ -3,6 +3,7 @@
 const 載入設定 = f => { try { return require(f); } catch { console.error('找不到 設定.json：請複製 設定.example.json 為 設定.json 並填入連線資訊'); process.exit(1); } };
 const express = require('express'), sql = require('mssql'), path = require('path');
 const cfg = 載入設定('./設定.json');
+if (process.env.OAV_DB) cfg.db.database = process.env.OAV_DB;   // 測試用：改連其他資料庫
 
 const app = express();
 const pool = new sql.ConnectionPool(cfg.db).connect();

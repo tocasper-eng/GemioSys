@@ -82,6 +82,17 @@ table.pivot tr.total td { font-weight: 700; border-top: 2px solid var(--ink); ba
 .yr { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .yr input { width: 96px; }
 
+/* 下鑽麵包屑、參照對話框 */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 10px; font-size: 14px; }
+.crumbs a { color: var(--pri); }
+.crumbs i { color: var(--muted); font-style: normal; }
+td.go { color: var(--muted); font-size: 18px; text-align: center; }
+dialog.wide { width: min(960px, calc(100vw - 32px)); }
+dialog.wide .tbl { max-height: 60vh; overflow: auto; box-shadow: none; border: 1px solid var(--line); }
+dialog.wide tbody tr { cursor: pointer; }
+input[type=checkbox] { width: 18px; height: 18px; min-height: 0; }
+.dhead .acts { margin: 0; flex-wrap: wrap; }
+
 /* 表單 */
 .master { border: 0; margin: 0 0 16px; padding: 16px; background: var(--card); border-radius: var(--r);
           display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); box-shadow: 0 1px 3px #0001; }

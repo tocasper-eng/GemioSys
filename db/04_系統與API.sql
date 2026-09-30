@@ -24,7 +24,33 @@ CREATE TABLE 系統功能表 (
 IF COL_LENGTH(N'dbo.系統功能表', N'樞紐縱軸') IS NULL
     ALTER TABLE 系統功能表 ADD 樞紐縱軸 sysname NULL, 樞紐日期 sysname NULL, 樞紐數值 sysname NULL;
 IF OBJECT_ID(N'CK_系統功能表_類型') IS NOT NULL ALTER TABLE 系統功能表 DROP CONSTRAINT CK_系統功能表_類型;
-ALTER TABLE 系統功能表 ADD CONSTRAINT CK_系統功能表_類型 CHECK (功能類型 IN (N'模組', N'群組', N'維護', N'報表', N'樞紐'));
+ALTER TABLE 系統功能表 ADD CONSTRAINT CK_系統功能表_類型 CHECK (功能類型 IN (N'模組', N'群組', N'維護', N'報表', N'樞紐', N'下鑽'));
+
+/* 多層下鑽：第 N 層資料來源，以「連結對應」{本層欄位: 上層欄位} 依上層點選列篩選 */
+IF OBJECT_ID(N'dbo.系統下鑽設定') IS NULL
+CREATE TABLE 系統下鑽設定 (
+    功能代碼 nvarchar(20) NOT NULL CONSTRAINT FK_系統下鑽設定_功能 REFERENCES 系統功能表(功能代碼) ON DELETE CASCADE,
+    層級     int NOT NULL CONSTRAINT CK_系統下鑽設定_層級 CHECK (層級 >= 1),
+    標題     nvarchar(30) NOT NULL,
+    資料來源 sysname NOT NULL,
+    連結對應 nvarchar(400) NULL CONSTRAINT CK_系統下鑽設定_連結 CHECK (連結對應 IS NULL OR ISJSON(連結對應) = 1),
+    排序     nvarchar(200) NULL,           -- 例：倉庫代碼, 餘額日期 DESC（欄位須存在於資料來源）
+    CONSTRAINT PK_系統下鑽設定 PRIMARY KEY (功能代碼, 層級)
+);
+
+/* 參照帶入：單據建檔時瀏覽來源（如 已訂未出明細），勾選後拷貝到主檔/明細
+   篩選對應 {來源欄位: 主檔欄位}（主檔有值才篩）、主檔對應 {主檔欄位: 來源欄位}、明細對應 {明細欄位: 來源欄位} */
+IF OBJECT_ID(N'dbo.系統參照設定') IS NULL
+CREATE TABLE 系統參照設定 (
+    功能代碼 nvarchar(20) NOT NULL CONSTRAINT FK_系統參照設定_功能 REFERENCES 系統功能表(功能代碼) ON DELETE CASCADE,
+    參照名稱 nvarchar(30) NOT NULL,
+    資料來源 sysname NOT NULL,
+    篩選對應 nvarchar(400) NULL CONSTRAINT CK_系統參照設定_篩選 CHECK (篩選對應 IS NULL OR ISJSON(篩選對應) = 1),
+    主檔對應 nvarchar(400) NULL CONSTRAINT CK_系統參照設定_主檔 CHECK (主檔對應 IS NULL OR ISJSON(主檔對應) = 1),
+    明細對應 nvarchar(800) NOT NULL CONSTRAINT CK_系統參照設定_明細 CHECK (ISJSON(明細對應) = 1),
+    排序     nvarchar(200) NULL,
+    CONSTRAINT PK_系統參照設定 PRIMARY KEY (功能代碼, 參照名稱)
+);
 IF OBJECT_ID(N'dbo.系統欄位設定') IS NULL
 CREATE TABLE 系統欄位設定 (
     資料表   sysname NOT NULL,
@@ -137,7 +163,7 @@ CREATE OR ALTER PROCEDURE api.畫面定義 @JSON nvarchar(max), @回應 nvarchar
 BEGIN
     SET NOCOUNT ON;
     DECLARE @功能 nvarchar(20) = JSON_VALUE(@JSON, N'$."功能代碼"');
-    IF NOT EXISTS (SELECT 1 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'樞紐'))
+    IF NOT EXISTS (SELECT 1 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'樞紐', N'下鑽'))
         THROW 50000, N'功能代碼不存在', 1;
 
     SET @回應 = (
@@ -152,7 +178,10 @@ BEGIN
                                   CAST(IIF(EXISTS (SELECT 1 FROM api.欄位定義 m WHERE m.資料表 = f.主資料表
                                                    AND m.主鍵 = 1 AND m.欄位名稱 = d.欄位名稱), 1, 0) AS bit) AS 連結
                            FROM api.欄位定義 d WHERE d.資料表 = f.明細資料表 ORDER BY d.欄位順序
-                           FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]')) AS 明細欄位
+                           FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]')) AS 明細欄位,
+               JSON_QUERY(ISNULL((SELECT 參照名稱 FROM dbo.系統參照設定 r WHERE r.功能代碼 = f.功能代碼 ORDER BY 參照名稱
+                           FOR JSON PATH), N'[]')) AS 參照,
+               (SELECT COUNT(*) FROM dbo.系統下鑽設定 k WHERE k.功能代碼 = f.功能代碼) AS 下鑽層數
         FROM dbo.系統功能表 f
         LEFT JOIN dbo.系統功能表 p ON p.功能代碼 = f.上層代碼
         LEFT JOIN dbo.系統功能表 g ON g.功能代碼 = p.上層代碼
@@ -169,7 +198,7 @@ BEGIN
             @關鍵字 nvarchar(50) = NULLIF(LTRIM(RTRIM(JSON_VALUE(@JSON, N'$."關鍵字"'))), N''),
             @T sysname, @串 nvarchar(max), @序 nvarchar(max), @sql nvarchar(max), @r nvarchar(max);
 
-    SELECT @T = 主資料表 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表');
+    SELECT @T = 主資料表 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'下鑽');
     IF @T IS NULL THROW 50000, N'功能代碼不存在', 1;
 
     SELECT @串 = STRING_AGG(CAST(N'CAST(' + QUOTENAME(欄位名稱) + N' AS nvarchar(100))' AS nvarchar(max)), N',')
@@ -436,6 +465,112 @@ BEGIN
         FOR JSON PATH, INCLUDE_NULL_VALUES);';
     EXEC sp_executesql @sql, N'@年 int, @r nvarchar(max) OUTPUT', @年, @r OUTPUT;
     SET @回應 = (SELECT @年 AS 年度, @列 AS 縱軸, @值 AS 數值, JSON_QUERY(ISNULL(@r, N'[]')) AS 資料
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+END
+GO
+
+/* ---------- 共用：驗證「排序」設定，回傳安全的 ORDER BY 子句（欄位不存在就退回 1） ---------- */
+CREATE OR ALTER FUNCTION api.fn_排序子句 (@資料表 sysname, @排序 nvarchar(200), @別名 nvarchar(10))
+RETURNS nvarchar(max) AS
+BEGIN
+    DECLARE @r nvarchar(max), @錯 int;
+    WITH t AS (
+        SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@排序, N',') WHERE LTRIM(RTRIM(value)) <> N''
+    ), p AS (
+        SELECT CASE WHEN v LIKE N'% DESC' THEN RTRIM(LEFT(v, LEN(v) - 5)) WHEN v LIKE N'% ASC' THEN RTRIM(LEFT(v, LEN(v) - 4)) ELSE v END AS 欄,
+               IIF(v LIKE N'% DESC', N' DESC', N'') AS 向
+        FROM t
+    )
+    SELECT @錯 = SUM(IIF(f.欄位名稱 IS NULL, 1, 0)),
+           @r = STRING_AGG(CAST(ISNULL(@別名, N'') + QUOTENAME(p.欄) + p.向 AS nvarchar(max)), N', ')
+    FROM p LEFT JOIN api.欄位定義 f ON f.資料表 = @資料表 AND f.欄位名稱 = p.欄;
+    RETURN IIF(@錯 > 0 OR @r IS NULL, N'1', @r);
+END
+GO
+
+/* ---------- api.下鑽 {功能代碼, 層級, 上層列:{…}, 關鍵字} ----------
+   依 系統下鑽設定 取第 N 層資料，並以上層點選列的值篩選 */
+CREATE OR ALTER PROCEDURE api.下鑽 @JSON nvarchar(max), @回應 nvarchar(max) OUTPUT AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @功能 nvarchar(20) = JSON_VALUE(@JSON, N'$."功能代碼"'),
+            @層 int = ISNULL(TRY_CAST(JSON_VALUE(@JSON, N'$."層級"') AS int), 1),
+            @上層 nvarchar(max) = ISNULL(JSON_QUERY(@JSON, N'$."上層列"'), N'{}'),
+            @關鍵字 nvarchar(50) = NULLIF(LTRIM(RTRIM(JSON_VALUE(@JSON, N'$."關鍵字"'))), N''),
+            @T sysname, @標題 nvarchar(30), @連結 nvarchar(400), @序 nvarchar(max), @篩 nvarchar(max), @串 nvarchar(max),
+            @層數 int, @下層欄 nvarchar(max), @sql nvarchar(max), @r nvarchar(max);
+
+    SELECT @T = 資料來源, @標題 = 標題, @連結 = 連結對應, @序 = api.fn_排序子句(資料來源, 排序, NULL)
+    FROM dbo.系統下鑽設定 WHERE 功能代碼 = @功能 AND 層級 = @層;
+    IF @T IS NULL THROW 50000, N'下鑽設定不存在', 1;
+    SELECT @層數 = MAX(層級) FROM dbo.系統下鑽設定 WHERE 功能代碼 = @功能;
+
+    /* 連結對應 {本層欄位: 上層欄位} → 本層欄位 = 上層列的值；本層欄位必須存在 */
+    IF EXISTS (SELECT 1 FROM OPENJSON(@連結) j LEFT JOIN api.欄位定義 f ON f.資料表 = @T AND f.欄位名稱 = j.[key] COLLATE DATABASE_DEFAULT WHERE f.欄位名稱 IS NULL)
+        THROW 50000, N'下鑽連結欄位不存在', 1;
+    SELECT @篩 = STRING_AGG(CAST(QUOTENAME([key]) + N' = JSON_VALUE(@上層, N''$."' + REPLACE(value, N'''', N'''''') + N'"'')' AS nvarchar(max)), N' AND ')
+    FROM OPENJSON(@連結);
+    SELECT @串 = STRING_AGG(CAST(N'CAST(' + QUOTENAME(欄位名稱) + N' AS nvarchar(100))' AS nvarchar(max)), N',')
+    FROM api.欄位定義 WHERE 資料表 = @T;
+    /* 下一層會用到的上層欄位（前端用來顯示麵包屑） */
+    SELECT @下層欄 = (SELECT value AS 欄 FROM dbo.系統下鑽設定 CROSS APPLY OPENJSON(連結對應)
+                      WHERE 功能代碼 = @功能 AND 層級 = @層 + 1 FOR JSON PATH);
+
+    SET @sql = N'SET @r = (SELECT TOP (1000) * FROM ' + QUOTENAME(@T) + N' WHERE 1 = 1'
+             + ISNULL(N' AND ' + @篩, N'')
+             + N' AND (@k IS NULL OR CONCAT_WS(N''|'', N'''', ' + @串 + N') LIKE N''%'' + @k + N''%'')'
+             + N' ORDER BY ' + @序 + N' FOR JSON PATH, INCLUDE_NULL_VALUES);';
+    EXEC sp_executesql @sql, N'@上層 nvarchar(max), @k nvarchar(50), @r nvarchar(max) OUTPUT', @上層, @關鍵字, @r OUTPUT;
+
+    SET @回應 = (SELECT @層 AS 層級, @層數 AS 層數, @標題 AS 標題, @T AS 資料來源,
+                        JSON_QUERY((SELECT 欄位名稱, 資料型別 FROM api.欄位定義 WHERE 資料表 = @T ORDER BY 欄位順序 FOR JSON PATH)) AS 欄位,
+                        JSON_QUERY(ISNULL((SELECT N'[' + STRING_AGG(N'"' + STRING_ESCAPE(JSON_VALUE(x.value, N'$."欄"'), 'json') + N'"', N',') + N']'
+                                           FROM OPENJSON(@下層欄) x), N'[]')) AS 下層欄位,
+                        JSON_QUERY(ISNULL(@r, N'[]')) AS 資料
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+END
+GO
+
+/* ---------- api.參照 {功能代碼, 參照名稱, 主檔:{…}} ----------
+   回傳來源資料，每列附「帶入主檔」「帶入明細」（依對應設定組好，前端直接貼上） */
+CREATE OR ALTER PROCEDURE api.參照 @JSON nvarchar(max), @回應 nvarchar(max) OUTPUT AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @功能 nvarchar(20) = JSON_VALUE(@JSON, N'$."功能代碼"'),
+            @名稱 nvarchar(30) = JSON_VALUE(@JSON, N'$."參照名稱"'),
+            @m nvarchar(max) = ISNULL(JSON_QUERY(@JSON, N'$."主檔"'), N'{}'),
+            @T sysname, @篩設定 nvarchar(400), @主設定 nvarchar(400), @明設定 nvarchar(800), @序 nvarchar(max),
+            @篩 nvarchar(max), @主 nvarchar(max), @明 nvarchar(max), @sql nvarchar(max), @r nvarchar(max);
+
+    SELECT TOP (1) @T = 資料來源, @名稱 = 參照名稱, @篩設定 = 篩選對應, @主設定 = 主檔對應, @明設定 = 明細對應,
+           @序 = api.fn_排序子句(資料來源, 排序, N's.')
+    FROM dbo.系統參照設定 WHERE 功能代碼 = @功能 AND (@名稱 IS NULL OR 參照名稱 = @名稱) ORDER BY 參照名稱;
+    IF @T IS NULL THROW 50000, N'參照設定不存在', 1;
+
+    /* 設定中引用的來源欄位都必須存在 */
+    IF EXISTS (SELECT 1 FROM (SELECT [key] AS 欄 FROM OPENJSON(@篩設定)
+                              UNION ALL SELECT value FROM OPENJSON(@主設定)
+                              UNION ALL SELECT value FROM OPENJSON(@明設定)) c
+               LEFT JOIN api.欄位定義 f ON f.資料表 = @T AND f.欄位名稱 = c.欄 COLLATE DATABASE_DEFAULT WHERE f.欄位名稱 IS NULL)
+        THROW 50000, N'參照設定的來源欄位不存在', 1;
+
+    /* 主檔有值才篩選：來源欄位 = 主檔欄位值 */
+    SELECT @篩 = STRING_AGG(CAST(N'(JSON_VALUE(@m, N''$."' + REPLACE(value, N'''', N'''''') + N'"'') IS NULL OR s.' + QUOTENAME([key])
+                 + N' = JSON_VALUE(@m, N''$."' + REPLACE(value, N'''', N'''''') + N'"''))' AS nvarchar(max)), N' AND ')
+    FROM OPENJSON(@篩設定);
+    SELECT @主 = STRING_AGG(CAST(N's.' + QUOTENAME(value) + N' AS ' + QUOTENAME([key]) AS nvarchar(max)), N', ') FROM OPENJSON(@主設定);
+    SELECT @明 = STRING_AGG(CAST(N's.' + QUOTENAME(value) + N' AS ' + QUOTENAME([key]) AS nvarchar(max)), N', ') FROM OPENJSON(@明設定);
+
+    SET @sql = N'SET @r = (SELECT TOP (500) s.*'
+             + N', JSON_QUERY(' + IIF(@主 IS NULL, N'N''{}''', N'(SELECT ' + @主 + N' FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)') + N') AS 帶入主檔'
+             + N', JSON_QUERY((SELECT ' + @明 + N' FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS 帶入明細'
+             + N' FROM ' + QUOTENAME(@T) + N' s WHERE 1 = 1' + ISNULL(N' AND ' + @篩, N'')
+             + N' ORDER BY ' + @序 + N' FOR JSON PATH, INCLUDE_NULL_VALUES);';
+    EXEC sp_executesql @sql, N'@m nvarchar(max), @r nvarchar(max) OUTPUT', @m, @r OUTPUT;
+
+    SET @回應 = (SELECT @名稱 AS 參照名稱, @T AS 資料來源,
+                        JSON_QUERY((SELECT 欄位名稱, 資料型別 FROM api.欄位定義 WHERE 資料表 = @T ORDER BY 欄位順序 FOR JSON PATH)) AS 欄位,
+                        JSON_QUERY(ISNULL(@r, N'[]')) AS 資料
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 END
 GO

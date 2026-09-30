@@ -1,13 +1,13 @@
 {
   "name": "oav-erp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OAV ERP 庫存管理系統（PWA + SQL Server）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "db:deploy": "node db/部署.js",
     "db:reset": "node db/部署.js --reset",
-    "test": "node tests/過帳測試.js"
+    "test": "node tests/執行測試.js"
   },
   "keywords": [],
   "author": "",

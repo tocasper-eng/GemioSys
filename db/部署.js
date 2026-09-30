@@ -2,6 +2,7 @@
 const 載入設定 = f => { try { return require(f); } catch { console.error('找不到 設定.json：請複製 設定.example.json 為 設定.json 並填入連線資訊'); process.exit(1); } };
 const fs = require('fs'), path = require('path'), sql = require('mssql');
 const cfg = 載入設定('../設定.json').db;
+if (process.env.OAV_DB) cfg.database = process.env.OAV_DB;   // 測試用：改部署到其他資料庫
 
 (async () => {
   const reset = process.argv.includes('--reset');

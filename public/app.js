@@ -84,6 +84,7 @@ async function route() {
     if (mode === 'new') return renderForm(def, null);
     if (mode === 'edit') return renderForm(def, JSON.parse(decodeURIComponent(key)));
     if (def.功能類型 === '樞紐') return renderPivot(def);
+    if (def.功能類型 === '下鑽') return renderDrill(def, [{ 層級: 1 }]);
     return renderList(def);
   } catch (e) {
     view.innerHTML = `<div class="empty">⚠ ${esc(e.message)}<br><a href="#/">回主功能表</a></div>`;
@@ -156,6 +157,38 @@ async function renderPivot(def, 年度 = new Date().getFullYear()) {
   } catch (e) { $('.tbl').innerHTML = `<p class="empty">⚠ ${esc(e.message)}</p>`; }
 }
 
+/* ---------- 多層下鑽（api.下鑽 依 系統下鑽設定 回傳每一層；前端只記路徑） ---------- */
+async function renderDrill(def, 路徑, kw = '') {
+  const 目前 = 路徑.at(-1);
+  view.innerHTML = `
+    <div class="toolbar">
+      <a href="#/" class="btn">← 功能表</a>
+      <h1>${esc(def.功能名稱)}</h1>
+      <input id="kw" type="search" placeholder="搜尋本層…" value="${esc(kw)}">
+    </div>
+    <nav class="crumbs">${路徑.map((p, i) => i < 路徑.length - 1
+      ? `<a href="javascript:" data-i="${i}">${esc(p.標籤 || '…')}</a>` : `<b>${esc(p.標籤 || '…')}</b>`).join('<i>›</i>')}</nav>
+    <div class="tbl"><p class="muted">讀取中…</p></div>`;
+  $('#kw').onkeydown = e => { if (e.key === 'Enter') renderDrill(def, 路徑, e.target.value); };
+  $('.crumbs').onclick = e => { const i = e.target.dataset.i; if (i != null) renderDrill(def, 路徑.slice(0, +i + 1)); };
+  try {
+    const r = await api('下鑽', { 功能代碼: def.功能代碼, 層級: 目前.層級, 上層列: 目前.上層列, 關鍵字: kw || null });
+    目前.標籤 = r.標題 + (目前.條件 ? `：${目前.條件}` : '');
+    $('.crumbs b').textContent = 目前.標籤;
+    const 可下鑽 = r.層級 < r.層數;
+    $('.tbl').innerHTML = r.資料.length ? `<table><thead><tr>${r.欄位.map(c => `<th>${esc(c.欄位名稱)}</th>`).join('')}${可下鑽 ? '<th></th>' : ''}</tr></thead>
+      <tbody>${r.資料.map((row, i) => `<tr ${可下鑽 ? `data-i="${i}"` : ''}>${r.欄位.map(c =>
+        `<td class="${/int|decimal/.test(c.資料型別) ? 'num' : ''}">${esc(row[c.欄位名稱])}</td>`).join('')}${可下鑽 ? '<td class="go">›</td>' : ''}</tr>`).join('')}</tbody></table>
+      <p class="muted">第 ${r.層級} / ${r.層數} 層．共 ${r.資料.length} 筆${可下鑽 ? '．點選列查看下一層' : ''}</p>`
+      : '<p class="empty">查無資料</p>';
+    if (可下鑽) $('.tbl tbody')?.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-i]'); if (!tr) return;
+      const row = r.資料[tr.dataset.i];
+      renderDrill(def, [...路徑, { 層級: r.層級 + 1, 上層列: row, 條件: r.下層欄位.map(k => row[k]).join(' / ') }]);
+    });
+  } catch (e) { $('.tbl').innerHTML = `<p class="empty">⚠ ${esc(e.message)}</p>`; }
+}
+
 /* ---------- 維護表單（主檔 + 明細） ---------- */
 const lists = new Set();
 async function datalist(c) {                    // 下拉選項由 api.選單 提供
@@ -216,7 +249,9 @@ async function renderForm(def, key) {
         <button class="btn pri">存檔</button>
       </div>
       <fieldset class="master">${def.主檔欄位.map(mField).join('')}</fieldset>
-      ${hasD ? `<div class="dhead"><h2>明細</h2><button type="button" id="add" class="btn">＋ 新增明細</button></div>
+      ${hasD ? `<div class="dhead"><h2>明細</h2><span class="acts">
+          ${(def.參照 || []).map(r => `<button type="button" class="btn ref" data-ref="${esc(r.參照名稱)}">⇩ 從${esc(r.參照名稱)}帶入</button>`).join('')}
+          <button type="button" id="add" class="btn">＋ 新增明細</button></span></div>
         <div class="tbl"><table class="grid"><thead><tr>${dCols.map(c => `<th>${esc(c.欄位名稱)}</th>`).join('')}<th></th></tr></thead>
         <tbody>${(data.明細.length ? data.明細 : 新增 ? [{}] : []).map(dRow).join('')}</tbody></table></div>` : ''}
     </form>`;
@@ -224,6 +259,37 @@ async function renderForm(def, key) {
   const f = $('#frm'), tb = $('tbody', f);
   $('#add')?.addEventListener('click', () => { tb.insertAdjacentHTML('beforeend', dRow()); tb.lastElementChild.querySelector('input:not([disabled])')?.focus(); });
   tb?.addEventListener('click', e => { if (e.target.matches('.x')) e.target.closest('tr').remove(); });
+
+  // 參照帶入：api.參照 已依設定把來源列組好「帶入主檔 / 帶入明細」，前端只負責勾選與貼上
+  f.querySelectorAll('.ref').forEach(b => b.onclick = async () => {
+    const dlg = $('#refdlg');
+    try {
+      const r = await api('參照', { 功能代碼: def.功能代碼, 參照名稱: b.dataset.ref, 主檔: collect($('.master', f), def.主檔欄位) });
+      const cols = r.欄位.map(c => c.欄位名稱);
+      $('h3', dlg).textContent = r.參照名稱;
+      $('.tbl', dlg).innerHTML = r.資料.length ? `<table><thead><tr><th><input type="checkbox" id="refall"></th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${r.資料.map((row, i) => `<tr><td><input type="checkbox" value="${i}"></td>${r.欄位.map(c =>
+          `<td class="${/int|decimal/.test(c.資料型別) ? 'num' : ''}">${esc(row[c.欄位名稱])}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+        : '<p class="empty">沒有可帶入的資料（請確認主檔條件）</p>';
+      $('#refall', dlg)?.addEventListener('change', e => dlg.querySelectorAll('tbody input').forEach(x => x.checked = e.target.checked));
+      $('tbody', dlg)?.addEventListener('click', e => { const tr = e.target.closest('tr'); if (tr && e.target.type !== 'checkbox') { const c = $('input', tr); c.checked = !c.checked; } });
+      $('#refok', dlg).onclick = () => {
+        const pick = [...dlg.querySelectorAll('tbody input:checked')].map(x => r.資料[x.value]);
+        if (!pick.length) return toast('請勾選要帶入的資料', true);
+        const 主 = pick.map(p => JSON.stringify(p.帶入主檔));
+        if (new Set(主).size > 1) return toast('勾選的資料主檔條件不一致（例如不同客戶），請分開建立', true);
+        for (const [k, v] of Object.entries(pick[0].帶入主檔 || {})) {
+          const i = $(`.master [name="${CSS.escape(k)}"]`, f);
+          if (i && !i.disabled && !i.value) i.value = v ?? '';
+          else if (i && i.value && v != null && i.value !== String(v)) return toast(`主檔「${k}」與帶入資料不一致`, true);
+        }
+        [...tb.rows].filter(tr => [...tr.querySelectorAll('input')].every(i => !i.value)).forEach(tr => tr.remove());
+        tb.insertAdjacentHTML('beforeend', pick.map(p => dRow(p.帶入明細)).join(''));
+        dlg.close(); toast(`已帶入 ${pick.length} 筆，請補齊其他欄位（如倉庫代碼）`);
+      };
+      dlg.showModal();
+    } catch (err) { toast(err.message, true); }
+  });
 
   f.onsubmit = async e => {
     e.preventDefault();

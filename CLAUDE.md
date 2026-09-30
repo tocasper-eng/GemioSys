@@ -12,8 +12,10 @@ OAV WMS：ERP 庫存管理系統（PWA + SQL Server）。本檔給在此 repo �
 npm run db:deploy   # 執行 01_遷移 + 重新部署 02~06（不清資料）
 npm run db:reset    # 刪除並重建整個資料庫（會清空資料！）
 npm start           # http://localhost:3000
-npm test            # 需伺服器已啟動；過帳 + 驗證準則端對端測試，必須全綠
+npm test            # 自動重建 <資料庫>_test + 啟動 port 3999 測試伺服器；必須全綠
 ```
+**`oav00` 已有使用者實際輸入的資料：不要對它執行 `db:reset`；只用 `db:deploy`。** 測試一律走 `npm test`（`oav00_test`）。
+
 連線設定在 `設定.json`（已 gitignore，範本為 `設定.example.json`）。**絕不可把 設定.json 或密碼提交到 git。**
 
 ## 資料表結構變更（重要）
@@ -24,6 +26,8 @@ npm test            # 需伺服器已啟動；過帳 + 驗證準則端對端測�
 ## SQL 撰寫注意
 - 資料庫定序 `Chinese_Taiwan_Stroke_CI_AS`（不分大小寫）：變數 `@d` 與 `@D` 視為同一個，會衝突。
 - JSON 路徑含中文鍵必須加引號：`N'$."功能代碼"'`，不可寫 `N'$.功能代碼'`。
+- `OPENJSON` 的 `[key]` 定序是 `Latin1_General_BIN2`，與欄位名稱比較要加 `COLLATE DATABASE_DEFAULT`。
+- 設定表中的排序字串一律經 `api.fn_排序子句` 驗證後才可拼進動態 SQL。
 - 觸發程序一律以集合處理（inserted/deleted 多列），過帳用「以來源鍵重算 SUM」，不要用差額加減。
 - 超量檢核放在來源表 CHECK 條件；錯誤訊息中文化加在 `系統錯誤訊息`（以約束名稱比對）。
 - `api.*` 寫入類程序須保持冪等（`系統請求紀錄` + `sp_getapplock`）。
@@ -31,7 +35,7 @@ npm test            # 需伺服器已啟動；過帳 + 驗證準則端對端測�
 
 ## 完成一段工作前
 1. `npm run db:deploy`（或 `db:reset`）成功
-2. `npm test` 全部 ✔（含 `系統驗證結果` 12 條違規筆數為 0）
+2. `npm test` 全部 ✔（含 `系統驗證結果` 12 條違規筆數為 0、下鑽與參照帶入測試）
 3. 更新 README.md / CLAUDE.md / SKILL.md / AGENT.md 中受影響的段落
 4. commit 並 push 到 `tocasper-eng/oav_wms`，重要里程碑建立 GitHub Release
 
