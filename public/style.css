@@ -125,3 +125,16 @@ dialog h3 { margin: 0 0 12px; }
   .brand span { display: none; }
   .master { grid-template-columns: 1fr 1fr; }
 }
+
+/* 資料表關聯圖 */
+.sel { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 40px; }
+.chk { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chk input { width: auto; min-height: 0; }
+.zoom { display: inline-flex; }
+.zoom button { border-radius: 0; min-width: 40px; justify-content: center; }
+.zoom button:first-child { border-radius: 8px 0 0 8px; }
+.zoom button:last-child { border-radius: 0 8px 8px 0; }
+.zoom button + button { margin-left: -1px; }
+.er-note { margin: -4px 0 10px; font-size: 13px; }
+.tbl.er { overflow: auto; max-height: calc(100vh - 170px); padding: 8px; }
+.tbl.er svg { display: block; }

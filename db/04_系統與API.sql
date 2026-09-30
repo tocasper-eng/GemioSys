@@ -24,7 +24,7 @@ CREATE TABLE 系統功能表 (
 IF COL_LENGTH(N'dbo.系統功能表', N'樞紐縱軸') IS NULL
     ALTER TABLE 系統功能表 ADD 樞紐縱軸 sysname NULL, 樞紐日期 sysname NULL, 樞紐數值 sysname NULL;
 IF OBJECT_ID(N'CK_系統功能表_類型') IS NOT NULL ALTER TABLE 系統功能表 DROP CONSTRAINT CK_系統功能表_類型;
-ALTER TABLE 系統功能表 ADD CONSTRAINT CK_系統功能表_類型 CHECK (功能類型 IN (N'模組', N'群組', N'維護', N'報表', N'樞紐', N'下鑽'));
+ALTER TABLE 系統功能表 ADD CONSTRAINT CK_系統功能表_類型 CHECK (功能類型 IN (N'模組', N'群組', N'維護', N'報表', N'樞紐', N'下鑽', N'關聯圖'));
 
 /* 多層下鑽：第 N 層資料來源，以「連結對應」{本層欄位: 上層欄位} 依上層點選列篩選 */
 IF OBJECT_ID(N'dbo.系統下鑽設定') IS NULL
@@ -163,7 +163,7 @@ CREATE OR ALTER PROCEDURE api.畫面定義 @JSON nvarchar(max), @回應 nvarchar
 BEGIN
     SET NOCOUNT ON;
     DECLARE @功能 nvarchar(20) = JSON_VALUE(@JSON, N'$."功能代碼"');
-    IF NOT EXISTS (SELECT 1 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'樞紐', N'下鑽'))
+    IF NOT EXISTS (SELECT 1 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'樞紐', N'下鑽', N'關聯圖'))
         THROW 50000, N'功能代碼不存在', 1;
 
     SET @回應 = (
@@ -572,5 +572,93 @@ BEGIN
                         JSON_QUERY((SELECT 欄位名稱, 資料型別 FROM api.欄位定義 WHERE 資料表 = @T ORDER BY 欄位順序 FOR JSON PATH)) AS 欄位,
                         JSON_QUERY(ISNULL(@r, N'[]')) AS 資料
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+END
+GO
+
+/* ---------- api.關聯圖 {模組, 只顯示鍵} ：由 sys.foreign_keys 產生 Mermaid erDiagram 文字 ----------
+   模組 空白 = 全部業務資料表；SY = 系統* 資料表；其他 = 該模組功能的主/明細資料表，
+   並帶出其外部索引鍵參照的上層表（灰色）。
+   關聯線：參照表 ||/|o（外鍵不可空/可空）── o{ 本表；外鍵全在本表主鍵內 = 實線（識別關聯），否則虛線 */
+CREATE OR ALTER PROCEDURE api.關聯圖 @JSON nvarchar(max), @回應 nvarchar(max) OUTPUT AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @模組 nvarchar(20) = NULLIF(JSON_VALUE(@JSON, N'$."模組"'), N''),
+            @只顯示鍵 bit = ISNULL(TRY_CAST(JSON_VALUE(@JSON, N'$."只顯示鍵"') AS bit), 0),
+            @LF nchar(1) = NCHAR(10), @圖 nvarchar(max), @表數 int, @線數 int;
+    IF @模組 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.系統功能表 WHERE 功能代碼 = @模組 AND 功能類型 = N'模組')
+        THROW 50000, N'模組不存在', 1;
+
+    DECLARE @表 TABLE (物件 int PRIMARY KEY, 名稱 sysname COLLATE DATABASE_DEFAULT, 主要 bit);
+    INSERT @表
+    SELECT t.object_id, t.name, 1 FROM sys.tables t
+    WHERE t.schema_id = SCHEMA_ID(N'dbo') AND t.is_ms_shipped = 0
+      AND (   (@模組 IS NULL     AND t.name NOT LIKE N'系統%')
+           OR (@模組 = N'SY'     AND t.name LIKE N'系統%')
+           OR (@模組 <> N'SY'    AND t.name IN (SELECT v.表 FROM dbo.系統功能表 f
+                                                JOIN dbo.系統功能表 g ON g.功能代碼 = f.上層代碼
+                                                CROSS APPLY (VALUES (f.主資料表), (f.明細資料表)) v(表)
+                                                WHERE g.上層代碼 = @模組 AND v.表 IS NOT NULL)));
+    INSERT @表
+    SELECT DISTINCT fk.referenced_object_id, OBJECT_NAME(fk.referenced_object_id), 0
+    FROM sys.foreign_keys fk
+    WHERE fk.parent_object_id IN (SELECT 物件 FROM @表)
+      AND fk.referenced_object_id NOT IN (SELECT 物件 FROM @表);
+
+    /* 欄位：型別 名稱 PK/FK */
+    DECLARE @欄 TABLE (物件 int, 序 int, 文字 nvarchar(400) COLLATE DATABASE_DEFAULT);
+    INSERT @欄
+    SELECT c.object_id, c.column_id,
+           N'    ' + CASE WHEN ty.name IN (N'nvarchar', N'nchar') THEN ty.name + N'(' + IIF(c.max_length = -1, N'max', CAST(c.max_length / 2 AS nvarchar(10))) + N')'
+                          WHEN ty.name IN (N'varchar', N'char', N'varbinary') THEN ty.name + N'(' + IIF(c.max_length = -1, N'max', CAST(c.max_length AS nvarchar(10))) + N')'
+                          WHEN ty.name IN (N'decimal', N'numeric') THEN CONCAT(ty.name, N'(', c.precision, N',', c.scale, N')')
+                          ELSE ty.name END
+           + N' ' + c.name
+           + CASE WHEN k.是主鍵 = 1 AND k.是外鍵 = 1 THEN N' PK, FK' WHEN k.是主鍵 = 1 THEN N' PK' WHEN k.是外鍵 = 1 THEN N' FK' ELSE N'' END
+    FROM sys.columns c
+    JOIN @表 x ON x.物件 = c.object_id
+    JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+    CROSS APPLY (SELECT
+        是主鍵 = IIF(EXISTS (SELECT 1 FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                             WHERE i.object_id = c.object_id AND i.is_primary_key = 1 AND ic.column_id = c.column_id), 1, 0),
+        是外鍵 = IIF(EXISTS (SELECT 1 FROM sys.foreign_key_columns fc
+                             WHERE fc.parent_object_id = c.object_id AND fc.parent_column_id = c.column_id), 1, 0)) k
+    WHERE @只顯示鍵 = 0 OR k.是主鍵 = 1 OR k.是外鍵 = 1;
+
+    /* 關聯：兩端都在圖中的外部索引鍵 */
+    DECLARE @線 TABLE (序 int IDENTITY, 文字 nvarchar(800) COLLATE DATABASE_DEFAULT);
+    INSERT @線 (文字)
+    SELECT CONCAT(N'  t', fk.referenced_object_id, N' ',
+                  IIF(q.可空 = 1, N'|o', N'||'), IIF(q.識別 = 1, N'--', N'..'), N'o{ t', fk.parent_object_id,
+                  N' : "', q.欄位, N'"')
+    FROM sys.foreign_keys fk
+    CROSS APPLY (SELECT
+        欄位 = STRING_AGG(CAST(c.name AS nvarchar(max)), N',') WITHIN GROUP (ORDER BY fc.constraint_column_id),
+        可空 = MAX(CAST(c.is_nullable AS int)),
+        識別 = MIN(IIF(pk.column_id IS NULL, 0, 1))
+        FROM sys.foreign_key_columns fc
+        JOIN sys.columns c ON c.object_id = fc.parent_object_id AND c.column_id = fc.parent_column_id
+        LEFT JOIN (sys.indexes i JOIN sys.index_columns pk ON pk.object_id = i.object_id AND pk.index_id = i.index_id)
+               ON i.object_id = fc.parent_object_id AND i.is_primary_key = 1 AND pk.column_id = fc.parent_column_id
+        WHERE fc.constraint_object_id = fk.object_id) q
+    WHERE fk.parent_object_id IN (SELECT 物件 FROM @表) AND fk.referenced_object_id IN (SELECT 物件 FROM @表)
+      AND fk.parent_object_id <> fk.referenced_object_id
+    ORDER BY OBJECT_NAME(fk.referenced_object_id), OBJECT_NAME(fk.parent_object_id);
+
+    SELECT @表數 = COUNT(*) FROM @表;
+    SELECT @線數 = COUNT(*) FROM @線;
+    SET @圖 = N'erDiagram' + @LF
+        + ISNULL((SELECT STRING_AGG(CAST(CONCAT(N'  t', x.物件, N'["', x.名稱, N'"] {', @LF, b.欄位, @LF, N'  }') AS nvarchar(max)), @LF)
+                         WITHIN GROUP (ORDER BY x.主要 DESC, x.名稱)
+                  FROM @表 x
+                  LEFT JOIN (SELECT 物件, STRING_AGG(CAST(文字 AS nvarchar(max)), @LF) WITHIN GROUP (ORDER BY 序) AS 欄位
+                             FROM @欄 GROUP BY 物件) b ON b.物件 = x.物件), N'')
+        + ISNULL(@LF + (SELECT STRING_AGG(CAST(文字 AS nvarchar(max)), @LF) WITHIN GROUP (ORDER BY 序) FROM @線), N'')
+        + ISNULL(@LF + N'  classDef ref fill:#eef1f5,stroke:#9aa5b1,color:#56606b' + @LF + N'  class '
+                 + (SELECT STRING_AGG(CONCAT(N't', 物件), N',') FROM @表 WHERE 主要 = 0) + N' ref', N'');
+
+    SET @回應 = (SELECT @模組 AS 模組, @表數 AS 資料表數, @線數 AS 關聯數, @圖 AS 圖,
+                        JSON_QUERY((SELECT 功能代碼 AS 代碼, 功能名稱 AS 名稱 FROM dbo.系統功能表
+                                    WHERE 功能類型 = N'模組' ORDER BY 排序 FOR JSON PATH)) AS 模組清單
+                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES);
 END
 GO

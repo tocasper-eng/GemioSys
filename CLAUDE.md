@@ -35,9 +35,10 @@ npm test            # 自動重建 <資料庫>_test + 啟動 port 3999 測試伺
 
 ## 完成一段工作前
 1. `npm run db:deploy`（或 `db:reset`）成功
-2. `npm test` 全部 ✔（含 `系統驗證結果` 12 條違規筆數為 0、下鑽與參照帶入測試）
+2. `npm test` 全部 ✔（含 `系統驗證結果` 12 條違規筆數為 0、下鑽、參照帶入與關聯圖測試）
 3. 更新 README.md / CLAUDE.md / SKILL.md / AGENT.md 中受影響的段落
 4. commit 並 push 到 `tocasper-eng/oav_wms`，重要里程碑建立 GitHub Release
+5. 前端或 `server.js` 有改動時，重新部署 Zeabur（https://wms.zeabur.app，步驟見 README「雲端部署」）
 
 ## 規格已知限制（待使用者決定）
 - `物料預留` 沒有沖銷機制，預留數量永遠列為需求。

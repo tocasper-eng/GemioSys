@@ -85,6 +85,7 @@ async function route() {
     if (mode === 'edit') return renderForm(def, JSON.parse(decodeURIComponent(key)));
     if (def.功能類型 === '樞紐') return renderPivot(def);
     if (def.功能類型 === '下鑽') return renderDrill(def, [{ 層級: 1 }]);
+    if (def.功能類型 === '關聯圖') return renderER(def);
     return renderList(def);
   } catch (e) {
     view.innerHTML = `<div class="empty">⚠ ${esc(e.message)}<br><a href="#/">回主功能表</a></div>`;
@@ -187,6 +188,41 @@ async function renderDrill(def, 路徑, kw = '') {
       renderDrill(def, [...路徑, { 層級: r.層級 + 1, 上層列: row, 條件: r.下層欄位.map(k => row[k]).join(' / ') }]);
     });
   } catch (e) { $('.tbl').innerHTML = `<p class="empty">⚠ ${esc(e.message)}</p>`; }
+}
+
+/* ---------- 資料表關聯圖（api.關聯圖 由外部索引鍵產生 Mermaid 文字，前端只負責繪製與縮放） ---------- */
+let mermaidP;
+const loadMermaid = () => mermaidP ??= import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
+  .then(m => m.default).catch(e => { mermaidP = null; throw new Error('無法載入繪圖元件（需連線）'); });
+async function renderER(def, 模組 = '', 只顯示鍵 = false) {
+  let 比例 = 1;
+  view.innerHTML = `
+    <div class="toolbar">
+      <a href="#/" class="btn">← 功能表</a>
+      <h1>${esc(def.功能名稱)} <small>E-R Diagram</small></h1>
+      <select id="mod" class="sel"><option value="">全部業務資料表</option></select>
+      <label class="chk"><input id="key" type="checkbox" ${只顯示鍵 ? 'checked' : ''}> 只顯示鍵值欄位</label>
+      <span class="zoom"><button id="zo" title="縮小">－</button><button id="zf" title="符合寬度">⤢</button><button id="zi" title="放大">＋</button></span>
+    </div>
+    <p class="muted er-note">讀取中…</p>
+    <div class="tbl er"></div>`;
+  const redo = () => renderER(def, $('#mod').value, $('#key').checked);
+  $('#mod').onchange = redo; $('#key').onchange = redo;
+  try {
+    const [r, mermaid] = await Promise.all([api('關聯圖', { 模組: 模組 || null, 只顯示鍵 }), loadMermaid()]);
+    $('#mod').insertAdjacentHTML('beforeend', r.模組清單.map(m => `<option value="${esc(m.代碼)}">${esc(m.名稱)}</option>`).join(''));
+    $('#mod').value = 模組;
+    $('.er-note').textContent = `${r.資料表數} 個資料表．${r.關聯數} 條關聯．實線 = 識別關聯（外鍵為主鍵一部分），虛線 = 非識別；灰色 = 其他模組被參照的資料表`;
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', maxTextSize: 500000,
+      theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default', er: { useMaxWidth: false } });
+    const { svg } = await mermaid.render('er' + Date.now(), r.圖);
+    const box = $('.er'); box.innerHTML = svg;
+    const s = $('svg', box), w = s.viewBox.baseVal.width;
+    const zoom = k => { 比例 = k; s.style.maxWidth = 'none'; s.style.width = `${w * 比例}px`; s.style.height = 'auto'; };
+    const fit = () => zoom(Math.min(1, (box.clientWidth - 16) / w));
+    $('#zi').onclick = () => zoom(比例 * 1.25); $('#zo').onclick = () => zoom(比例 / 1.25); $('#zf').onclick = fit;
+    fit();
+  } catch (e) { $('.er-note').textContent = '⚠ ' + e.message; }
 }
 
 /* ---------- 維護表單（主檔 + 明細） ---------- */

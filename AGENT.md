@@ -16,6 +16,7 @@
 4. 執行 `npm test`（自動建立 `<資料庫>_test` 與測試伺服器，不影響正式資料），必須全部 ✔。
 5. 更新 README.md / CLAUDE.md / SKILL.md / AGENT.md。
 6. commit（訊息說明「為什麼」），push 到 `tocasper-eng/oav_wms`；里程碑建立 Release。
+7. 前端或 `server.js` 有改動時重新部署 Zeabur（README「雲端部署」）；資料庫物件只靠 `db:deploy`。
 
 ## 共用資料庫注意
 `oav00` 是共用的遠端資料庫，**已有使用者資料**。`db:reset` 會 DROP DATABASE，執行前確認沒有其他人或其他 agent 正在使用；發現資料庫物件與本 repo 不一致時，先停下來詢問使用者，不要直接覆蓋。
