@@ -61,7 +61,7 @@ INSERT dbo.系統功能表 (功能代碼, 上層代碼, 功能名稱, 功能類�
 /* SY */
 (N'SY',   NULL,   N'SY 系統模組', N'模組', NULL, NULL, NULL, 900, N'System'),
 (N'SY1',  N'SY',  N'系統檢核',   N'群組', NULL, NULL, NULL, 910, NULL),
-(N'SY11', N'SY1', N'過帳驗證',   N'報表', N'系統驗證結果', NULL, NULL, 911, N'驗證準則逐條檢核'),
+(N'SY11', N'SY1', N'驗証過帳',   N'報表', N'系統驗證結果', NULL, NULL, 911, N'驗證準則逐條檢核'),
 (N'SY12', N'SY1', N'資料表關聯圖', N'關聯圖', NULL, NULL, NULL, 912, N'E-R Diagram（依外部索引鍵自動產生）');
 
 UPDATE dbo.系統功能表 SET 樞紐縱軸 = N'客戶編號', 樞紐日期 = N'單據日期', 樞紐數值 = N'數量' WHERE 功能代碼 = N'SD42';
