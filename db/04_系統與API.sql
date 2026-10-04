@@ -26,6 +26,9 @@ IF COL_LENGTH(N'dbo.系統功能表', N'樞紐縱軸') IS NULL
 /* 僅可修改 = 1：由觸發程序產生的資料（如 工單入庫三階），畫面不提供新增 / 刪除 */
 IF COL_LENGTH(N'dbo.系統功能表', N'僅可修改') IS NULL
     ALTER TABLE 系統功能表 ADD 僅可修改 bit NOT NULL CONSTRAINT DF_系統功能表_僅可修改 DEFAULT 0;
+/* 清單排序：清單 / 報表的排序（例：入庫編號, 入庫項次, 三階項次），空白 = 主鍵遞減（最新在前） */
+IF COL_LENGTH(N'dbo.系統功能表', N'清單排序') IS NULL
+    ALTER TABLE 系統功能表 ADD 清單排序 nvarchar(200) NULL;
 IF OBJECT_ID(N'CK_系統功能表_類型') IS NOT NULL ALTER TABLE 系統功能表 DROP CONSTRAINT CK_系統功能表_類型;
 ALTER TABLE 系統功能表 ADD CONSTRAINT CK_系統功能表_類型 CHECK (功能類型 IN (N'模組', N'群組', N'維護', N'報表', N'樞紐', N'下鑽', N'關聯圖'));
 
@@ -193,6 +196,25 @@ BEGIN
 END
 GO
 
+/* ---------- 共用：驗證「排序」設定，回傳安全的 ORDER BY 子句（欄位不存在就退回 1） ---------- */
+CREATE OR ALTER FUNCTION api.fn_排序子句 (@資料表 sysname, @排序 nvarchar(200), @別名 nvarchar(10))
+RETURNS nvarchar(max) AS
+BEGIN
+    DECLARE @r nvarchar(max), @錯 int;
+    WITH t AS (
+        SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@排序, N',') WHERE LTRIM(RTRIM(value)) <> N''
+    ), p AS (
+        SELECT CASE WHEN v LIKE N'% DESC' THEN RTRIM(LEFT(v, LEN(v) - 5)) WHEN v LIKE N'% ASC' THEN RTRIM(LEFT(v, LEN(v) - 4)) ELSE v END AS 欄,
+               IIF(v LIKE N'% DESC', N' DESC', N'') AS 向
+        FROM t
+    )
+    SELECT @錯 = SUM(IIF(f.欄位名稱 IS NULL, 1, 0)),
+           @r = STRING_AGG(CAST(ISNULL(@別名, N'') + QUOTENAME(p.欄) + p.向 AS nvarchar(max)), N', ')
+    FROM p LEFT JOIN api.欄位定義 f ON f.資料表 = @資料表 AND f.欄位名稱 = p.欄;
+    RETURN IIF(@錯 > 0 OR @r IS NULL, N'1', @r);
+END
+GO
+
 /* ---------- api.清單 {功能代碼, 關鍵字} ：維護清單 / 報表資料 ---------- */
 CREATE OR ALTER PROCEDURE api.清單 @JSON nvarchar(max), @回應 nvarchar(max) OUTPUT AS
 BEGIN
@@ -201,13 +223,15 @@ BEGIN
             @關鍵字 nvarchar(50) = NULLIF(LTRIM(RTRIM(JSON_VALUE(@JSON, N'$."關鍵字"'))), N''),
             @T sysname, @串 nvarchar(max), @序 nvarchar(max), @sql nvarchar(max), @r nvarchar(max);
 
-    SELECT @T = 主資料表 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'下鑽');
+    DECLARE @清單排序 nvarchar(200);
+    SELECT @T = 主資料表, @清單排序 = 清單排序 FROM dbo.系統功能表 WHERE 功能代碼 = @功能 AND 功能類型 IN (N'維護', N'報表', N'下鑽');
     IF @T IS NULL THROW 50000, N'功能代碼不存在', 1;
 
     SELECT @串 = STRING_AGG(CAST(N'CAST(' + QUOTENAME(欄位名稱) + N' AS nvarchar(100))' AS nvarchar(max)), N',')
     FROM api.欄位定義 WHERE 資料表 = @T;
     SELECT @序 = STRING_AGG(CAST(QUOTENAME(欄位名稱) + N' DESC' AS nvarchar(max)), N',') WITHIN GROUP (ORDER BY 欄位順序)
     FROM api.欄位定義 WHERE 資料表 = @T AND 主鍵 = 1;
+    IF @清單排序 IS NOT NULL SET @序 = api.fn_排序子句(@T, @清單排序, NULL);
 
     SET @sql = N'SET @r = (SELECT TOP (500) * FROM ' + QUOTENAME(@T)
              + N' WHERE @k IS NULL OR CONCAT_WS(N''|'', N'''', ' + @串 + N') LIKE N''%'' + @k + N''%'''
@@ -472,24 +496,6 @@ BEGIN
 END
 GO
 
-/* ---------- 共用：驗證「排序」設定，回傳安全的 ORDER BY 子句（欄位不存在就退回 1） ---------- */
-CREATE OR ALTER FUNCTION api.fn_排序子句 (@資料表 sysname, @排序 nvarchar(200), @別名 nvarchar(10))
-RETURNS nvarchar(max) AS
-BEGIN
-    DECLARE @r nvarchar(max), @錯 int;
-    WITH t AS (
-        SELECT LTRIM(RTRIM(value)) AS v FROM STRING_SPLIT(@排序, N',') WHERE LTRIM(RTRIM(value)) <> N''
-    ), p AS (
-        SELECT CASE WHEN v LIKE N'% DESC' THEN RTRIM(LEFT(v, LEN(v) - 5)) WHEN v LIKE N'% ASC' THEN RTRIM(LEFT(v, LEN(v) - 4)) ELSE v END AS 欄,
-               IIF(v LIKE N'% DESC', N' DESC', N'') AS 向
-        FROM t
-    )
-    SELECT @錯 = SUM(IIF(f.欄位名稱 IS NULL, 1, 0)),
-           @r = STRING_AGG(CAST(ISNULL(@別名, N'') + QUOTENAME(p.欄) + p.向 AS nvarchar(max)), N', ')
-    FROM p LEFT JOIN api.欄位定義 f ON f.資料表 = @資料表 AND f.欄位名稱 = p.欄;
-    RETURN IIF(@錯 > 0 OR @r IS NULL, N'1', @r);
-END
-GO
 
 /* ---------- api.下鑽 {功能代碼, 層級, 上層列:{…}, 關鍵字} ----------
    依 系統下鑽設定 取第 N 層資料，並以上層點選列的值篩選 */
