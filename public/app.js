@@ -1,4 +1,4 @@
-// OAV ERP 前端：只負責「畫出 SQL Server 給的畫面定義」與「離線佇列」。
+// GemioERP 前端：只負責「畫出 SQL Server 給的畫面定義」與「離線佇列」。
 // 功能表、欄位、下拉選單、單號、檢核、過帳全部由 api.* 預存程序決定。
 const $ = (s, el = document) => el.querySelector(s);
 const esc = v => v == null ? '' : String(v).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);

@@ -1,6 +1,6 @@
 {
-  "name": "OAV ERP 庫存管理系統",
-  "short_name": "OAV ERP",
+  "name": "GemioERP 庫存管理系統",
+  "short_name": "GemioERP",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f5f7",

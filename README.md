@@ -1,4 +1,6 @@
-# OAV WMS — ERP 庫存管理系統
+# GemioERP — ERP 庫存管理系統
+
+> 系統名稱：**GemioERP**（GitHub repo `oav_wms`、資料庫 `oav00`、Zeabur 專案 `oav-wms` 為既有內部代號，未改名）
 
 PWA 前端 + 極薄 Node 閘道 + SQL Server。**商業邏輯全部在資料庫**（資料表約束、觸發程序、視圖、預存程序），前端只負責「畫出資料庫給的畫面定義」與「斷線重傳佇列」。
 

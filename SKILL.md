@@ -1,9 +1,9 @@
 ---
-name: oav-wms-extend
-description: 在 OAV WMS（PWA + SQL Server ERP）新增功能表項目、單據、報表、樞紐分析、過帳規則或驗證準則時使用。說明如何只用 T-SQL 物件與設定表擴充系統，不改前端。
+name: gemio-erp-extend
+description: 在 GemioERP（PWA + SQL Server ERP）新增功能表項目、單據、報表、樞紐分析、過帳規則或驗證準則時使用。說明如何只用 T-SQL 物件與設定表擴充系統，不改前端。
 ---
 
-# OAV WMS 擴充技能
+# GemioERP 擴充技能
 
 系統所有畫面由資料庫中繼資料驅動。擴充時依下列食譜操作，**不要修改 `public/app.js`**，除非是新的「功能類型」。
 
