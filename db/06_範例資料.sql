@@ -10,3 +10,6 @@ IF NOT EXISTS (SELECT 1 FROM 廠商資料維護) INSERT 廠商資料維護 VALUE
 IF NOT EXISTS (SELECT 1 FROM 物料資料維護) INSERT 物料資料維護 VALUES (N'A001', N'成品-桌燈'), (N'B001', N'零件-燈座'), (N'B002', N'零件-燈罩');
 IF NOT EXISTS (SELECT 1 FROM 物管資料維護) INSERT 物管資料維護 VALUES (N'M01', N'王物管');
 IF NOT EXISTS (SELECT 1 FROM 用量清單維護) INSERT 用量清單維護 VALUES (N'A001', N'B001', 1, NULL), (N'A001', N'B002', 2, NULL);
+IF NOT EXISTS (SELECT 1 FROM 製程資料維護) INSERT 製程資料維護 VALUES (N'P10', N'組裝'), (N'P20', N'檢驗');
+IF NOT EXISTS (SELECT 1 FROM 機台資料維護) INSERT 機台資料維護 VALUES (N'MC01', N'組裝線一'), (N'MC02', N'檢驗台');
+IF NOT EXISTS (SELECT 1 FROM 途程清單維護) INSERT 途程清單維護 VALUES (N'A001', N'P10', 2, 1, NULL), (N'A001', N'P20', 1, 0, NULL);

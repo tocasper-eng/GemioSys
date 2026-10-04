@@ -65,6 +65,16 @@ JOIN 生產工單主檔 h ON h.工單編號 = d.工單編號
 WHERE d.應領用量 > d.已領用量;
 GO
 
+/* ---------- PP：工單未報工序（未完工工單、應報 > 已報；工單回報帶入來源） ---------- */
+CREATE OR ALTER VIEW 工單未報工序 AS
+SELECT p.工單編號, p.途程項次, h.工單日期, h.工廠代碼, h.產品物料, p.製程編號,
+       p.應報人時, p.已報人時, IIF(p.應報人時 > p.已報人時, p.應報人時 - p.已報人時, 0) AS 未報人時,
+       p.應報機時, p.已報機時, IIF(p.應報機時 > p.已報機時, p.應報機時 - p.已報機時, 0) AS 未報機時
+FROM 生產工序明細 p
+JOIN 生產工單主檔 h ON h.工單編號 = p.工單編號
+WHERE h.入庫數量 < h.生產數量 AND (p.應報人時 > p.已報人時 OR p.應報機時 > p.已報機時);
+GO
+
 /* ---------- PP：庫存在途明細（未來供給 / 需求，依工廠） ----------
    供給：採購在途（採購組織.工廠代碼）、工單產出（生產數量 − 入庫數量，產品物料）
    需求：訂單需求（銷售組織.工廠代碼）、工單用料（應領 − 已領）、物料預留 */
@@ -145,6 +155,16 @@ WITH r AS (
                                          ON s.工廠代碼 = v.工廠代碼 AND s.物料編號 = v.物料編號) x WHERE 在手數量 <> 前可用)
     UNION ALL SELECT 12, N'工單入庫物料 = 工單產品物料', N'工單入庫明細.物料編號 = 生產工單主檔.產品物料',
            (SELECT COUNT(*) FROM 工單入庫明細 d JOIN 生產工單主檔 o ON o.工單編號 = d.工單編號 WHERE d.物料編號 <> o.產品物料)
+    UNION ALL SELECT 13, N'每日庫存餘額 期末不可為負', N'期末數量 >= 0',
+           (SELECT COUNT(*) FROM 每日庫存餘額 WHERE 期末數量 < 0)
+    UNION ALL SELECT 14, N'工單回報 → 生產工序明細.已報人時/已報機時', N'以 工單編號+製程編號 累加',
+           (SELECT COUNT(*) FROM 生產工序明細 o
+            OUTER APPLY (SELECT ISNULL(SUM(人工小時), 0) AS 人工, ISNULL(SUM(機器小時), 0) AS 機器 FROM 工單回報明細 d
+                         WHERE d.工單編號 = o.工單編號 AND d.製程編號 = o.製程編號) s
+            WHERE o.已報人時 <> s.人工 OR o.已報機時 <> s.機器)
+    UNION ALL SELECT 15, N'工單入庫三階 筆數 = 入庫數量', N'COUNT(工單入庫三階) = 工單入庫明細.入庫數量',
+           (SELECT COUNT(*) FROM 工單入庫明細 d
+            WHERE d.入庫數量 <> (SELECT COUNT(*) FROM 工單入庫三階 s WHERE s.入庫編號 = d.入庫編號 AND s.入庫項次 = d.入庫項次))
 )
 SELECT 序號, 檢核項目, 規則, 違規筆數, IIF(違規筆數 = 0, N'✔ 通過', N'✘ 不符') AS 結果 FROM r;
 GO

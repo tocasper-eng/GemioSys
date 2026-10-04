@@ -30,21 +30,31 @@ a { color: inherit; }
 
 main { max-width: 1280px; margin: 0 auto; padding: 16px; }
 
-/* 主功能表 */
-.menu { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.mod { background: var(--card); border-radius: var(--r); border-top: 5px solid var(--c); box-shadow: 0 1px 3px #0001; overflow: hidden; }
+/* 版面：左側樹狀功能表 + 內容 */
+.shell { display: flex; align-items: flex-start; }
+main { flex: 1; min-width: 0; max-width: none; margin: 0; }
+.navbtn { display: none; background: none; border: 0; color: #fff; font-size: 22px; padding: 0 6px; min-height: 36px; }
+.nav { position: sticky; top: 52px; flex: 0 0 236px; height: calc(100vh - 52px); overflow-y: auto;
+       background: var(--card); border-right: 1px solid var(--line); padding: 8px 0 24px; font-size: 14px; }
+.nav a { display: block; text-decoration: none; padding: 7px 12px 7px 40px; min-height: 34px; border-left: 3px solid transparent; }
+.nav a:hover { background: color-mix(in srgb, var(--pri) 7%, transparent); }
+.nav a.on { background: color-mix(in srgb, var(--c, var(--pri)) 14%, transparent); border-left-color: var(--c, var(--pri)); font-weight: 600; }
+.nav a.home { padding-left: 14px; font-weight: 600; margin-bottom: 4px; }
+.nav summary { cursor: pointer; list-style: none; padding: 7px 12px; user-select: none; }
+.nav summary::-webkit-details-marker { display: none; }
+.nav summary::before { content: '▸'; display: inline-block; width: 14px; color: var(--muted); transition: transform .15s; }
+.nav details[open] > summary::before { transform: rotate(90deg); }
+.nav .mod > summary { font-weight: 700; }
+.nav .mod .code { font: 800 12px/1 ui-monospace, Consolas, monospace; color: #fff; background: var(--c); border-radius: 4px; padding: 3px 5px; margin-right: 6px; }
+.nav .grp > summary { padding-left: 26px; color: var(--muted); font-size: 13px; }
 .mod-SD { --c: var(--sd); } .mod-MM { --c: var(--mm); } .mod-IM { --c: var(--im); } .mod-PP { --c: var(--pp); } .mod-SY { --c: var(--sy); }
-.mod > header { padding: 14px 16px 8px; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: baseline; }
-.mod .code { grid-row: span 2; font: 800 28px/1 ui-monospace, Consolas, monospace; color: var(--c); }
-.mod h2 { margin: 0; font-size: 18px; }
-.mod header small { color: var(--muted); font-size: 12px; }
-.grp { padding: 4px 16px 10px; }
-.grp h3 { margin: 6px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 1px; }
-.fn { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; margin: 2px -12px;
-      border-radius: 8px; text-decoration: none; min-height: 44px; }
-.fn:hover, .fn:focus-visible { background: color-mix(in srgb, var(--c) 12%, transparent); outline: none; }
-.tag { font-style: normal; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); }
-.tag.rpt { background: var(--line); color: var(--muted); }
+@media (max-width: 900px) {
+  .navbtn { display: inline-flex; }
+  .nav { position: fixed; z-index: 6; left: 0; top: 0; height: 100vh; width: min(300px, 85vw); padding-top: max(12px, env(safe-area-inset-top));
+         transform: translateX(-100%); transition: transform .2s; box-shadow: 2px 0 12px #0003; }
+  body.navopen .nav { transform: none; }
+  body.navopen::after { content: ''; position: fixed; inset: 0; background: #0005; z-index: 5; }
+}
 
 /* 工具列、按鈕 */
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }

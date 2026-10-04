@@ -73,12 +73,14 @@ function toast(msg, bad) {
 
 /* ---------- 路由 ---------- */
 let 功能表 = [];
+const 首頁 = 'SY12';
 const crumb = t => $('#crumb').textContent = t || '';
 async function route() {
   const [, , code, mode, key] = location.hash.split('/');
   try {
-    if (!功能表.length) 功能表 = await api('功能表');
-    if (!code) return renderMenu();
+    if (!功能表.length) { 功能表 = await api('功能表'); renderNav(); }
+    markNav(code);
+    if (!code) { crumb(''); return renderER(await api('畫面定義', { 功能代碼: 首頁 }), '', false, true); }   // 首頁 = 資料表關聯圖
     const def = await api('畫面定義', { 功能代碼: code });
     crumb(`${def.模組名稱} › ${def.功能名稱}`);
     if (mode === 'new') return renderForm(def, null);
@@ -93,31 +95,36 @@ async function route() {
 }
 addEventListener('hashchange', route);
 
-/* ---------- 主功能表 ---------- */
-function renderMenu() {
-  crumb('');
+/* ---------- 左側樹狀功能表（模組 › 群組 › 功能，資料來自 api.功能表） ---------- */
+function renderNav() {
   const kids = p => 功能表.filter(f => f.上層代碼 === p);
-  view.innerHTML = `<section class="menu">${kids(null).map(m => `
-    <article class="mod mod-${esc(m.功能代碼)}">
-      <header><span class="code">${esc(m.功能代碼)}</span><h2>${esc(m.功能名稱.replace(/^\w+\s*/, ''))}</h2><small>${esc(m.說明)}</small></header>
+  $('#nav').innerHTML = `<a class="home" href="#/">⌂ 首頁．資料表關聯圖</a>` + kids(null).map(m => `
+    <details class="mod mod-${esc(m.功能代碼)}" open>
+      <summary><span class="code">${esc(m.功能代碼)}</span>${esc(m.功能名稱.replace(/^\w+\s*/, ''))}</summary>
       ${kids(m.功能代碼).map(g => `
-        <div class="grp"><h3>${esc(g.功能名稱)}</h3>
-          ${kids(g.功能代碼).map(f => `
-            <a class="fn" href="#/f/${esc(f.功能代碼)}"><span>${esc(f.功能名稱)}</span>
-              <i class="tag ${f.功能類型 === '報表' ? 'rpt' : ''}">${esc(f.功能類型)}</i></a>`).join('')}
-        </div>`).join('')}
-    </article>`).join('')}</section>`;
+        <details class="grp" open><summary>${esc(g.功能名稱)}</summary>
+          ${kids(g.功能代碼).map(f => `<a class="fn" data-c="${esc(f.功能代碼)}" href="#/f/${esc(f.功能代碼)}">${esc(f.功能名稱)}</a>`).join('')}
+        </details>`).join('')}
+    </details>`).join('');
 }
+function markNav(code) {
+  document.body.classList.remove('navopen');
+  $('#nav').querySelectorAll('a').forEach(a => a.classList.toggle('on', code ? a.dataset.c === code : a.matches('.home')));
+}
+$('#navbtn').onclick = () => document.body.classList.toggle('navopen');
+document.addEventListener('click', e => {           // 手機：點選功能表外側關閉抽屜
+  if (document.body.classList.contains('navopen') && !e.target.closest('#nav, #navbtn')) document.body.classList.remove('navopen');
+});
 
 /* ---------- 清單 / 報表 ---------- */
 async function renderList(def, kw = '') {
-  const 維護 = def.功能類型 === '維護', cols = def.主檔欄位;
+  const 維護 = def.功能類型 === '維護', cols = def.主檔欄位, 可新增 = 維護 && !def.僅可修改;
   view.innerHTML = `
     <div class="toolbar">
-      <a href="#/" class="btn">← 功能表</a>
+      <a href="#/" class="btn back">← 首頁</a>
       <h1>${esc(def.功能名稱)}</h1>
       <input id="kw" type="search" placeholder="搜尋…" value="${esc(kw)}">
-      ${維護 ? `<a class="btn pri" href="#/f/${def.功能代碼}/new">＋ 新增</a>` : ''}
+      ${可新增 ? `<a class="btn pri" href="#/f/${def.功能代碼}/new">＋ 新增</a>` : ''}
     </div>
     <div class="tbl"><p class="muted">讀取中…</p></div>`;
   $('#kw').onkeydown = e => { if (e.key === 'Enter') renderList(def, e.target.value); };
@@ -140,7 +147,7 @@ async function renderList(def, kw = '') {
 async function renderPivot(def, 年度 = new Date().getFullYear()) {
   view.innerHTML = `
     <div class="toolbar">
-      <a href="#/" class="btn">← 功能表</a>
+      <a href="#/" class="btn back">← 首頁</a>
       <h1>${esc(def.功能名稱)} <small>${esc(def.樞紐縱軸)} × 月份．${esc(def.樞紐數值)}</small></h1>
       <label class="yr">年度 <input id="yr" type="number" inputmode="numeric" value="${年度}"></label>
       <button id="go" class="btn pri">查詢</button>
@@ -163,7 +170,7 @@ async function renderDrill(def, 路徑, kw = '') {
   const 目前 = 路徑.at(-1);
   view.innerHTML = `
     <div class="toolbar">
-      <a href="#/" class="btn">← 功能表</a>
+      <a href="#/" class="btn back">← 首頁</a>
       <h1>${esc(def.功能名稱)}</h1>
       <input id="kw" type="search" placeholder="搜尋本層…" value="${esc(kw)}">
     </div>
@@ -194,11 +201,11 @@ async function renderDrill(def, 路徑, kw = '') {
 let mermaidP;
 const loadMermaid = () => mermaidP ??= import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
   .then(m => m.default).catch(e => { mermaidP = null; throw new Error('無法載入繪圖元件（需連線）'); });
-async function renderER(def, 模組 = '', 只顯示鍵 = false) {
+async function renderER(def, 模組 = '', 只顯示鍵 = false, 首頁頁 = false) {
   let 比例 = 1;
   view.innerHTML = `
     <div class="toolbar">
-      <a href="#/" class="btn">← 功能表</a>
+      ${首頁頁 ? '' : '<a href="#/" class="btn back">← 首頁</a>'}
       <h1>${esc(def.功能名稱)} <small>E-R Diagram</small></h1>
       <select id="mod" class="sel"><option value="">全部業務資料表</option></select>
       <label class="chk"><input id="key" type="checkbox" ${只顯示鍵 ? 'checked' : ''}> 只顯示鍵值欄位</label>
@@ -206,7 +213,7 @@ async function renderER(def, 模組 = '', 只顯示鍵 = false) {
     </div>
     <p class="muted er-note">讀取中…</p>
     <div class="tbl er"></div>`;
-  const redo = () => renderER(def, $('#mod').value, $('#key').checked);
+  const redo = () => renderER(def, $('#mod').value, $('#key').checked, 首頁頁);
   $('#mod').onchange = redo; $('#key').onchange = redo;
   try {
     const [r, mermaid] = await Promise.all([api('關聯圖', { 模組: 模組 || null, 只顯示鍵 }), loadMermaid()]);
@@ -281,7 +288,7 @@ async function renderForm(def, key) {
         <a href="#/f/${def.功能代碼}" class="btn">← 清單</a>
         <h1>${esc(def.功能名稱)} <small>${新增 ? '新增' : '修改'}</small></h1>
         <span class="grow"></span>
-        ${新增 ? '' : '<button type="button" id="del" class="btn danger">刪除</button>'}
+        ${新增 || def.僅可修改 ? '' : '<button type="button" id="del" class="btn danger">刪除</button>'}
         <button class="btn pri">存檔</button>
       </div>
       <fieldset class="master">${def.主檔欄位.map(mField).join('')}</fieldset>

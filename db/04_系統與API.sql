@@ -23,6 +23,9 @@ CREATE TABLE 系統功能表 (
 /* 樞紐分析設定：縱軸欄位 × 月份(由日期欄位取) ，統計 SUM(值欄位)，依「年度」篩選 */
 IF COL_LENGTH(N'dbo.系統功能表', N'樞紐縱軸') IS NULL
     ALTER TABLE 系統功能表 ADD 樞紐縱軸 sysname NULL, 樞紐日期 sysname NULL, 樞紐數值 sysname NULL;
+/* 僅可修改 = 1：由觸發程序產生的資料（如 工單入庫三階），畫面不提供新增 / 刪除 */
+IF COL_LENGTH(N'dbo.系統功能表', N'僅可修改') IS NULL
+    ALTER TABLE 系統功能表 ADD 僅可修改 bit NOT NULL CONSTRAINT DF_系統功能表_僅可修改 DEFAULT 0;
 IF OBJECT_ID(N'CK_系統功能表_類型') IS NOT NULL ALTER TABLE 系統功能表 DROP CONSTRAINT CK_系統功能表_類型;
 ALTER TABLE 系統功能表 ADD CONSTRAINT CK_系統功能表_類型 CHECK (功能類型 IN (N'模組', N'群組', N'維護', N'報表', N'樞紐', N'下鑽', N'關聯圖'));
 
@@ -167,7 +170,7 @@ BEGIN
         THROW 50000, N'功能代碼不存在', 1;
 
     SET @回應 = (
-        SELECT f.功能代碼, f.功能名稱, f.功能類型, f.主資料表, f.明細資料表, f.單號前綴, f.樞紐縱軸, f.樞紐日期, f.樞紐數值,
+        SELECT f.功能代碼, f.功能名稱, f.功能類型, f.主資料表, f.明細資料表, f.單號前綴, f.樞紐縱軸, f.樞紐日期, f.樞紐數值, f.僅可修改,
                p.功能名稱 AS 群組名稱, g.功能名稱 AS 模組名稱,
                JSON_QUERY((SELECT 欄位名稱, 資料型別, 長度, 可空, 主鍵, 唯讀,
                                   CAST(IIF(預設定義 IS NULL, 0, 1) AS bit) AS 有預設, 選單來源, 選單欄位

@@ -42,6 +42,14 @@ CREATE TABLE 物管資料維護 (
     物管編號 nvarchar(20) NOT NULL CONSTRAINT PK_物管資料維護 PRIMARY KEY,
     備註說明 nvarchar(20) NULL
 );
+CREATE TABLE 製程資料維護 (
+    製程編號 nvarchar(20) NOT NULL CONSTRAINT PK_製程資料維護 PRIMARY KEY,
+    備註說明 nvarchar(20) NULL
+);
+CREATE TABLE 機台資料維護 (
+    機台編號 nvarchar(20) NOT NULL CONSTRAINT PK_機台資料維護 PRIMARY KEY,
+    備註說明 nvarchar(20) NULL
+);
 CREATE TABLE 用量清單維護 (
     主階編號 nvarchar(20) NOT NULL CONSTRAINT FK_用量清單_主階 REFERENCES 物料資料維護(物料編號),
     子階編號 nvarchar(20) NOT NULL CONSTRAINT FK_用量清單_子階 REFERENCES 物料資料維護(物料編號),
@@ -49,6 +57,16 @@ CREATE TABLE 用量清單維護 (
     備註說明 nvarchar(20) NULL,
     CONSTRAINT PK_用量清單維護 PRIMARY KEY (主階編號, 子階編號),
     CONSTRAINT CK_用量清單_不可自身 CHECK (主階編號 <> 子階編號)
+);
+
+/* 途程清單：途程編號 = 產品物料編號（與 用量清單.主階編號 相同慣例）；人工/機器小時為每單位標準工時 */
+CREATE TABLE 途程清單維護 (
+    途程編號 nvarchar(20) NOT NULL CONSTRAINT FK_途程清單_途程 REFERENCES 物料資料維護(物料編號),
+    製程編號 nvarchar(20) NOT NULL CONSTRAINT FK_途程清單_製程 REFERENCES 製程資料維護(製程編號),
+    人工小時 int NOT NULL CONSTRAINT CK_途程清單_人工 CHECK (人工小時 >= 0),
+    機器小時 int NOT NULL CONSTRAINT CK_途程清單_機器 CHECK (機器小時 >= 0),
+    備註說明 nvarchar(20) NULL,
+    CONSTRAINT PK_途程清單維護 PRIMARY KEY (途程編號, 製程編號)
 );
 
 /* =========================================================
@@ -252,6 +270,7 @@ CREATE TABLE 每日庫存餘額 (
     本期出庫 int NOT NULL,
     期末數量 int NOT NULL,
     CONSTRAINT CK_每日庫存餘額_平衡 CHECK (期初數量 + 本期入庫 - 本期出庫 = 期末數量),
+    CONSTRAINT CK_每日庫存餘額_非負 CHECK (期末數量 >= 0),             -- 驗證準則：期末數量不可為負
     CONSTRAINT PK_每日庫存餘額 PRIMARY KEY (倉庫代碼, 物料編號, 餘額日期)
 );
 
@@ -282,6 +301,38 @@ CREATE TABLE 生產工單明細 (
     CONSTRAINT UQ_生產工單明細_物料 UNIQUE (工單編號, 物料編號),   -- 工單領料以 工單+物料 對應
     CONSTRAINT CK_生產工單明細_超領 CHECK (已領用量 BETWEEN 0 AND 應領用量)
 );
+/* 生產工序明細：由觸發程序依 途程清單（途程編號 = 產品物料）展開，應報 = 標準工時 × 生產數量 */
+CREATE TABLE 生產工序明細 (
+    工單編號 nvarchar(20) NOT NULL CONSTRAINT FK_生產工序明細_主檔 REFERENCES 生產工單主檔(工單編號) ON DELETE CASCADE,
+    途程項次 nvarchar(04) NOT NULL,
+    製程編號 nvarchar(20) NOT NULL CONSTRAINT FK_生產工序明細_製程 REFERENCES 製程資料維護(製程編號),
+    應報人時 int NOT NULL CONSTRAINT DF_生產工序明細_應報人時 DEFAULT 0,
+    應報機時 int NOT NULL CONSTRAINT DF_生產工序明細_應報機時 DEFAULT 0,
+    已報人時 int NOT NULL CONSTRAINT DF_生產工序明細_已報人時 DEFAULT 0,
+    已報機時 int NOT NULL CONSTRAINT DF_生產工序明細_已報機時 DEFAULT 0,
+    備註說明 nvarchar(20) NULL,
+    CONSTRAINT PK_生產工序明細 PRIMARY KEY (工單編號, 途程項次),
+    CONSTRAINT UQ_生產工序明細_製程 UNIQUE (工單編號, 製程編號)   -- 工單回報以 工單+製程 對應
+);
+CREATE TABLE 工單回報主檔 (
+    回報編號 nvarchar(20) NOT NULL CONSTRAINT PK_工單回報主檔 PRIMARY KEY,
+    回報日期 date NOT NULL CONSTRAINT DF_工單回報主檔_日期 DEFAULT (CAST(GETDATE() AS date)),
+    工廠代碼 nvarchar(20) NOT NULL CONSTRAINT FK_工單回報主檔_工廠 REFERENCES 工廠代碼維護(工廠代碼),
+    物管編號 nvarchar(20) NOT NULL CONSTRAINT FK_工單回報主檔_物管 REFERENCES 物管資料維護(物管編號),
+    備註說明 nvarchar(20) NULL
+);
+CREATE TABLE 工單回報明細 (
+    回報編號 nvarchar(20) NOT NULL CONSTRAINT FK_工單回報明細_主檔 REFERENCES 工單回報主檔(回報編號) ON DELETE CASCADE,
+    回報項次 nvarchar(04) NOT NULL,
+    工單編號 nvarchar(20) NOT NULL,
+    製程編號 nvarchar(20) NOT NULL,
+    機台代碼 nvarchar(20) NULL CONSTRAINT FK_工單回報明細_機台 REFERENCES 機台資料維護(機台編號),
+    機器小時 int NOT NULL CONSTRAINT CK_工單回報明細_機器 CHECK (機器小時 >= 0),
+    人工小時 int NOT NULL CONSTRAINT CK_工單回報明細_人工 CHECK (人工小時 >= 0),
+    備註說明 nvarchar(20) NULL,
+    CONSTRAINT PK_工單回報明細 PRIMARY KEY (回報編號, 回報項次),
+    CONSTRAINT FK_工單回報明細_工序 FOREIGN KEY (工單編號, 製程編號) REFERENCES 生產工序明細(工單編號, 製程編號)
+);
 CREATE TABLE 工單入庫主檔 (
     入庫編號 nvarchar(20) NOT NULL CONSTRAINT PK_工單入庫主檔 PRIMARY KEY,
     入庫日期 date NOT NULL CONSTRAINT DF_工單入庫主檔_日期 DEFAULT (CAST(GETDATE() AS date)),
@@ -298,6 +349,16 @@ CREATE TABLE 工單入庫明細 (
     入庫數量 int NOT NULL CONSTRAINT CK_工單入庫明細_數量 CHECK (入庫數量 > 0),
     備註說明 nvarchar(20) NULL,
     CONSTRAINT PK_工單入庫明細 PRIMARY KEY (入庫編號, 入庫項次)
+);
+/* 工單入庫三階：筆數 = 工單入庫明細.入庫數量（觸發程序自動展開/收合），每筆記錄一個 Macaddress */
+CREATE TABLE 工單入庫三階 (
+    入庫編號 nvarchar(20) NOT NULL,
+    入庫項次 nvarchar(04) NOT NULL,
+    三階項次 nvarchar(04) NOT NULL,
+    Macaddress nvarchar(20) NULL,
+    備註說明 nvarchar(20) NULL,
+    CONSTRAINT PK_工單入庫三階 PRIMARY KEY (入庫編號, 入庫項次, 三階項次),
+    CONSTRAINT FK_工單入庫三階_明細 FOREIGN KEY (入庫編號, 入庫項次) REFERENCES 工單入庫明細(入庫編號, 入庫項次) ON DELETE CASCADE
 );
 CREATE TABLE 工單領料主檔 (
     領料編號 nvarchar(20) NOT NULL CONSTRAINT PK_工單領料主檔 PRIMARY KEY,
@@ -325,3 +386,4 @@ CREATE INDEX IX_採購收貨明細_採購 ON 採購收貨明細 (採購編號, �
 CREATE INDEX IX_收貨退回明細_採購 ON 收貨退回明細 (採購編號, 採購項次) INCLUDE (退回數量);
 CREATE INDEX IX_工單入庫明細_工單 ON 工單入庫明細 (工單編號) INCLUDE (入庫數量);
 CREATE INDEX IX_工單領料明細_工單 ON 工單領料明細 (工單編號, 物料編號) INCLUDE (領料數量);
+CREATE INDEX IX_工單回報明細_工序 ON 工單回報明細 (工單編號, 製程編號) INCLUDE (人工小時, 機器小時);

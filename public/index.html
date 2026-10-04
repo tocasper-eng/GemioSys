@@ -12,11 +12,15 @@
 </head>
 <body>
 <header class="bar">
+  <button id="navbtn" class="navbtn" title="功能表" aria-label="功能表">☰</button>
   <a href="#/" class="brand"><img src="icon.svg" alt=""><span>OAV ERP</span></a>
   <span id="crumb" class="crumb"></span>
   <button id="net" class="net" title="連線狀態 / 待傳佇列"><i></i><span>連線中</span><b id="qn" hidden>0</b></button>
 </header>
-<main id="view"></main>
+<div class="shell">
+  <nav id="nav" class="nav" aria-label="主功能表"></nav>
+  <main id="view"></main>
+</div>
 <dialog id="qdlg">
   <h3>待傳佇列</h3>
   <div id="qlist"></div>
