@@ -1,4 +1,4 @@
-// GemioERP 閘道：只負責把 POST /api/<程序名> 的 JSON 轉交給 SQL Server 的 api.<程序名>，
+// GemioSys 閘道：只負責把 POST /api/<程序名> 的 JSON 轉交給 SQL Server 的 api.<程序名>，
 // 所有商業邏輯都在資料庫。
 // 雲端部署（Zeabur 等）沒有 設定.json 時，改用環境變數 DB_SERVER / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
 const 環境設定 = () => ({
@@ -43,4 +43,4 @@ app.post('/api/:proc', async (req, res) => {
 });
 
 const port = process.env.PORT || cfg.port;
-app.listen(port, () => console.log(`GemioERP 已啟動：http://localhost:${port}`));
+app.listen(port, () => console.log(`GemioSys 已啟動：http://localhost:${port}`));

@@ -1,6 +1,6 @@
 {
-  "name": "GemioERP 庫存管理系統",
-  "short_name": "GemioERP",
+  "name": "GemioSys 庫存管理系統",
+  "short_name": "GemioSys",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f5f7",

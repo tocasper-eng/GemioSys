@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-GemioERP：ERP 庫存管理系統（PWA + SQL Server）。本檔給在此 repo 工作的 Claude / AI 助理。
+GemioSys：ERP 庫存管理系統（PWA + SQL Server）。本檔給在此 repo 工作的 Claude / AI 助理。
 
 ## 最高原則
 - **極大化 SQL Server、極少化前端**：能用 T-SQL 物件（約束、觸發程序、視圖、函數、預存程序）解決的，絕不寫在前端或 Node。
