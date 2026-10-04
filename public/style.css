@@ -148,3 +148,8 @@ dialog h3 { margin: 0 0 12px; }
 .er-note { margin: -4px 0 10px; font-size: 13px; }
 .tbl.er { overflow: auto; max-height: calc(100vh - 170px); padding: 8px; }
 .tbl.er svg { display: block; }
+.toolbar.erf { margin-top: -4px; }
+.toolbar.erf input[type=search] { flex: 1 1 280px; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.chip { min-height: 32px; padding: 4px 10px; border-radius: 99px; font-size: 13px;
+        background: color-mix(in srgb, var(--pri) 12%, var(--card)); border-color: color-mix(in srgb, var(--pri) 35%, var(--line)); }

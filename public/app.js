@@ -80,7 +80,7 @@ async function route() {
   try {
     if (!功能表.length) { 功能表 = await api('功能表'); renderNav(); }
     markNav(code);
-    if (!code) { crumb(''); return renderER(await api('畫面定義', { 功能代碼: 首頁 }), '', false, true); }   // 首頁 = 資料表關聯圖
+    if (!code) { crumb(''); return renderER(await api('畫面定義', { 功能代碼: 首頁 }), { 首頁: true }); }   // 首頁 = 資料表關聯圖
     const def = await api('畫面定義', { 功能代碼: code });
     crumb(`${def.模組名稱} › ${def.功能名稱}`);
     if (mode === 'new') return renderForm(def, null);
@@ -201,25 +201,47 @@ async function renderDrill(def, 路徑, kw = '') {
 let mermaidP;
 const loadMermaid = () => mermaidP ??= import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
   .then(m => m.default).catch(e => { mermaidP = null; throw new Error('無法載入繪圖元件（需連線）'); });
-async function renderER(def, 模組 = '', 只顯示鍵 = false, 首頁頁 = false) {
+// 篩選條件 st：{模組, 只顯示鍵, 資料表:[表名或關鍵字…], 含相關, 首頁}；比對與帶出相關表都在 api.關聯圖 處理
+async function renderER(def, st = {}) {
+  st = { 模組: '', 只顯示鍵: false, 資料表: [], 含相關: true, ...st };
   let 比例 = 1;
   view.innerHTML = `
     <div class="toolbar">
-      ${首頁頁 ? '' : '<a href="#/" class="btn back">← 首頁</a>'}
+      ${st.首頁 ? '' : '<a href="#/" class="btn back">← 首頁</a>'}
       <h1>${esc(def.功能名稱)} <small>E-R Diagram</small></h1>
       <select id="mod" class="sel"><option value="">全部業務資料表</option></select>
-      <label class="chk"><input id="key" type="checkbox" ${只顯示鍵 ? 'checked' : ''}> 只顯示鍵值欄位</label>
+      <label class="chk"><input id="key" type="checkbox" ${st.只顯示鍵 ? 'checked' : ''}> 只顯示鍵值欄位</label>
       <span class="zoom"><button id="zo" title="縮小">－</button><button id="zf" title="符合寬度">⤢</button><button id="zi" title="放大">＋</button></span>
+    </div>
+    <div class="toolbar erf">
+      <input id="tbf" type="search" list="dl-er-tables" placeholder="篩選資料表：輸入表名或關鍵字後按 Enter（可多個）" autocomplete="off">
+      <datalist id="dl-er-tables"></datalist>
+      <span class="chips">${st.資料表.map((t, i) => `<button type="button" class="chip" data-i="${i}" title="移除">${esc(t)} ✕</button>`).join('')}</span>
+      <label class="chk"><input id="rel" type="checkbox" ${st.含相關 ? 'checked' : ''}> 含相關資料表</label>
+      ${st.資料表.length ? '<button type="button" id="tbclr" class="btn">清除篩選</button>' : ''}
     </div>
     <p class="muted er-note">讀取中…</p>
     <div class="tbl er"></div>`;
-  const redo = () => renderER(def, $('#mod').value, $('#key').checked, 首頁頁);
-  $('#mod').onchange = redo; $('#key').onchange = redo;
+  const redo = ch => renderER(def, { ...st, 模組: $('#mod').value, 只顯示鍵: $('#key').checked, 含相關: $('#rel').checked, ...ch });
+  $('#mod').onchange = () => redo(); $('#key').onchange = () => redo(); $('#rel').onchange = () => redo();
+  $('#tbf').onkeydown = e => {
+    const v = e.target.value.trim();
+    if (e.key === 'Enter' && v && !e.isComposing) redo({ 資料表: [...new Set([...st.資料表, v])] });
+  };
+  $('#tbf').oninput = e => {   // 從清單點選完整表名時直接加入
+    const v = e.target.value;
+    if ([...$('#dl-er-tables').options].some(o => o.value === v)) redo({ 資料表: [...new Set([...st.資料表, v])] });
+  };
+  $('.chips').onclick = e => { const i = e.target.dataset.i; if (i != null) redo({ 資料表: st.資料表.filter((_, k) => k !== +i) }); };
+  $('#tbclr')?.addEventListener('click', () => redo({ 資料表: [] }));
   try {
-    const [r, mermaid] = await Promise.all([api('關聯圖', { 模組: 模組 || null, 只顯示鍵 }), loadMermaid()]);
+    const r = await api('關聯圖', { 模組: st.模組 || null, 只顯示鍵: st.只顯示鍵, 資料表: st.資料表, 含相關: st.含相關 });
     $('#mod').insertAdjacentHTML('beforeend', r.模組清單.map(m => `<option value="${esc(m.代碼)}">${esc(m.名稱)}</option>`).join(''));
-    $('#mod').value = 模組;
-    $('.er-note').textContent = `${r.資料表數} 個資料表．${r.關聯數} 條關聯．實線 = 識別關聯（外鍵為主鍵一部分），虛線 = 非識別；灰色 = 其他模組被參照的資料表`;
+    $('#mod').value = st.模組;
+    $('#dl-er-tables').innerHTML = r.資料表清單.map(t => `<option value="${esc(t.名稱)}">`).join('');
+    if (!r.資料表數) { $('.er-note').textContent = '查無符合篩選條件的資料表'; return; }
+    $('.er-note').textContent = `${r.資料表數} 個資料表．${r.關聯數} 條關聯．實線 = 識別關聯（外鍵為主鍵一部分），虛線 = 非識別；灰色 = ${st.資料表.length ? '與篩選結果直接關聯' : '其他模組被參照'}的資料表`;
+    const mermaid = await loadMermaid();
     mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', maxTextSize: 500000,
       theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default', er: { useMaxWidth: false } });
     const { svg } = await mermaid.render('er' + Date.now(), r.圖);

@@ -1,6 +1,6 @@
 {
   "name": "gemio-erp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "GemioERP 庫存管理系統（PWA + SQL Server）",
   "main": "server.js",
   "scripts": {

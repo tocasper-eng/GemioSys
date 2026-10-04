@@ -1,6 +1,6 @@
 // Service Worker：快取 App 外殼供離線開啟；背景同步時上傳待傳佇列
 importScripts('outbox.js');
-const 版本 = 'gemio-v8';
+const 版本 = 'gemio-v9';
 const 外殼 = ['./', 'index.html', 'app.js', 'outbox.js', 'style.css', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', e => {

@@ -584,22 +584,28 @@ BEGIN
 END
 GO
 
-/* ---------- api.關聯圖 {模組, 只顯示鍵} ：由 sys.foreign_keys 產生 Mermaid erDiagram 文字 ----------
+/* ---------- api.關聯圖 {模組, 只顯示鍵, 資料表:[…], 含相關} ：由 sys.foreign_keys 產生 Mermaid erDiagram 文字 ----------
    模組 空白 = 全部業務資料表；SY = 系統* 資料表；其他 = 該模組功能的主/明細資料表，
    並帶出其外部索引鍵參照的上層表（灰色）。
+   資料表 篩選：每一項為完整表名或關鍵字（名稱包含即符合），在模組範圍內篩選；
+   含相關（預設 1）= 另帶出與篩選結果直接關聯的上層表與下層表（灰色）。
    關聯線：參照表 ||/|o（外鍵不可空/可空）── o{ 本表；外鍵全在本表主鍵內 = 實線（識別關聯），否則虛線 */
 CREATE OR ALTER PROCEDURE api.關聯圖 @JSON nvarchar(max), @回應 nvarchar(max) OUTPUT AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @模組 nvarchar(20) = NULLIF(JSON_VALUE(@JSON, N'$."模組"'), N''),
             @只顯示鍵 bit = ISNULL(TRY_CAST(JSON_VALUE(@JSON, N'$."只顯示鍵"') AS bit), 0),
+            @篩 nvarchar(max) = JSON_QUERY(@JSON, N'$."資料表"'),
+            @含相關 bit = ISNULL(TRY_CAST(JSON_VALUE(@JSON, N'$."含相關"') AS bit), 1),
             @LF nchar(1) = NCHAR(10), @圖 nvarchar(max), @表數 int, @線數 int;
+    DECLARE @條件 TABLE (值 nvarchar(128) COLLATE DATABASE_DEFAULT);
+    INSERT @條件 SELECT DISTINCT LTRIM(RTRIM(value)) FROM OPENJSON(ISNULL(@篩, N'[]')) WHERE LTRIM(RTRIM(value)) <> N'';
     IF @模組 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.系統功能表 WHERE 功能代碼 = @模組 AND 功能類型 = N'模組')
         THROW 50000, N'模組不存在', 1;
 
-    DECLARE @表 TABLE (物件 int PRIMARY KEY, 名稱 sysname COLLATE DATABASE_DEFAULT, 主要 bit);
-    INSERT @表
-    SELECT t.object_id, t.name, 1 FROM sys.tables t
+    DECLARE @範圍 TABLE (物件 int PRIMARY KEY, 名稱 sysname COLLATE DATABASE_DEFAULT);
+    INSERT @範圍
+    SELECT t.object_id, t.name FROM sys.tables t
     WHERE t.schema_id = SCHEMA_ID(N'dbo') AND t.is_ms_shipped = 0
       AND (   (@模組 IS NULL     AND t.name NOT LIKE N'系統%')
            OR (@模組 = N'SY'     AND t.name LIKE N'系統%')
@@ -607,11 +613,25 @@ BEGIN
                                                 JOIN dbo.系統功能表 g ON g.功能代碼 = f.上層代碼
                                                 CROSS APPLY (VALUES (f.主資料表), (f.明細資料表)) v(表)
                                                 WHERE g.上層代碼 = @模組 AND v.表 IS NOT NULL)));
+
+    DECLARE @表 TABLE (物件 int PRIMARY KEY, 名稱 sysname COLLATE DATABASE_DEFAULT, 主要 bit);
+    INSERT @表
+    SELECT r.物件, r.名稱, 1 FROM @範圍 r
+    WHERE NOT EXISTS (SELECT 1 FROM @條件)
+       OR EXISTS (SELECT 1 FROM @條件 c WHERE r.名稱 = c.值 OR CHARINDEX(c.值, r.名稱) > 0);
+    IF EXISTS (SELECT 1 FROM @條件) AND @含相關 = 1   -- 篩選時另帶出下層表（參照篩選結果者）
+        INSERT @表
+        SELECT DISTINCT fk.parent_object_id, OBJECT_NAME(fk.parent_object_id), 0
+        FROM sys.foreign_keys fk
+        WHERE fk.referenced_object_id IN (SELECT 物件 FROM @表 WHERE 主要 = 1)
+          AND fk.parent_object_id NOT IN (SELECT 物件 FROM @表)
+          AND OBJECT_NAME(fk.parent_object_id) NOT LIKE N'系統%';
     INSERT @表
     SELECT DISTINCT fk.referenced_object_id, OBJECT_NAME(fk.referenced_object_id), 0
     FROM sys.foreign_keys fk
-    WHERE fk.parent_object_id IN (SELECT 物件 FROM @表)
-      AND fk.referenced_object_id NOT IN (SELECT 物件 FROM @表);
+    WHERE fk.parent_object_id IN (SELECT 物件 FROM @表 WHERE 主要 = 1)
+      AND fk.referenced_object_id NOT IN (SELECT 物件 FROM @表)
+      AND (@含相關 = 1 OR NOT EXISTS (SELECT 1 FROM @條件));
 
     /* 欄位：型別 名稱 PK/FK */
     DECLARE @欄 TABLE (物件 int, 序 int, 文字 nvarchar(400) COLLATE DATABASE_DEFAULT);
@@ -667,7 +687,8 @@ BEGIN
 
     SET @回應 = (SELECT @模組 AS 模組, @表數 AS 資料表數, @線數 AS 關聯數, @圖 AS 圖,
                         JSON_QUERY((SELECT 功能代碼 AS 代碼, 功能名稱 AS 名稱 FROM dbo.系統功能表
-                                    WHERE 功能類型 = N'模組' ORDER BY 排序 FOR JSON PATH)) AS 模組清單
+                                    WHERE 功能類型 = N'模組' ORDER BY 排序 FOR JSON PATH)) AS 模組清單,
+                        JSON_QUERY(ISNULL((SELECT 名稱 FROM @範圍 ORDER BY 名稱 FOR JSON PATH), N'[]')) AS 資料表清單
                  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES);
 END
 GO
