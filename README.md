@@ -1,6 +1,6 @@
 # GemioERP — ERP 庫存管理系統
 
-> 系統名稱：**GemioERP**（GitHub repo `oav_wms`、資料庫 `oav00`、Zeabur 專案 `oav-wms` 為既有內部代號，未改名）
+> 系統名稱：**GemioERP**．GitHub repo `tocasper-eng/GemioSys`．Zeabur 專案 `GemioSys`（https://gemiosys.zeabur.app）．資料庫 `oav00` 為既有代號，未改名
 
 PWA 前端 + 極薄 Node 閘道 + SQL Server。**商業邏輯全部在資料庫**（資料表約束、觸發程序、視圖、預存程序），前端只負責「畫出資料庫給的畫面定義」與「斷線重傳佇列」。
 
@@ -28,8 +28,10 @@ npm test                         # 在獨立的 <資料庫>_test 跑端對端測
 `npm run db:deploy` 執行結構遷移（`01_遷移.sql`）並更新觸發程序/視圖/預存程序/功能表，不清除資料。
 
 ## 雲端部署（Zeabur）
-正式網址：**https://wms.zeabur.app**（Zeabur 專案 `oav-wms`，只跑 Node 閘道；資料庫仍是 `設定.json` 中的 SQL Server）。
+正式網址：**https://gemiosys.zeabur.app**（Zeabur 專案 `GemioSys`，只跑 Node 閘道；資料庫仍是 `設定.json` 中的 SQL Server）。
 - 雲端沒有 `設定.json`，改用環境變數 `DB_SERVER`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`（在 Zeabur 服務的 Variables 設定）。
+- Zeabur CLI 登入過期時部署會停在「A browser window will be opened」：先執行 `npx zeabur auth login`。
+- 一個服務只能有一個 `*.zeabur.app` 產生網域，新增會取代舊的（舊網址立即失效）。
 - 更新版本：先 commit，再用乾淨副本上傳（避免把 `設定.json` 傳上去）：
   ```bash
   git archive HEAD | tar -x -C <暫存目錄> && cd <暫存目錄>

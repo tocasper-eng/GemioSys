@@ -17,7 +17,7 @@
     "express": "^5.2.1",
     "mssql": "^12.7.2"
   },
-  "repository": "github:tocasper-eng/oav_wms",
+  "repository": "github:tocasper-eng/GemioSys",
   "engines": {
     "node": ">=20"
   }
