@@ -208,9 +208,28 @@ CREATE TABLE 物料預留明細 (
     預留項次 nvarchar(04) NOT NULL,
     物料編號 nvarchar(20) NOT NULL CONSTRAINT FK_物料預留明細_物料 REFERENCES 物料資料維護(物料編號),
     預留數量 int NOT NULL CONSTRAINT CK_物料預留明細_數量 CHECK (預留數量 > 0),
+    沖銷數量 int NOT NULL CONSTRAINT DF_物料預留明細_沖銷 DEFAULT 0,
     預定交期 date NULL,
     備註說明 nvarchar(20) NULL,
-    CONSTRAINT PK_物料預留明細 PRIMARY KEY (預留編號, 預留項次)
+    CONSTRAINT PK_物料預留明細 PRIMARY KEY (預留編號, 預留項次),
+    CONSTRAINT CK_物料預留明細_超沖 CHECK (沖銷數量 >= 0 AND 沖銷數量 <= 預留數量)
+);
+CREATE TABLE 預留沖銷主檔 (
+    沖銷編號 nvarchar(20) NOT NULL CONSTRAINT PK_預留沖銷主檔 PRIMARY KEY,
+    沖銷日期 date NOT NULL CONSTRAINT DF_預留沖銷主檔_日期 DEFAULT (CAST(GETDATE() AS date)),
+    工廠代碼 nvarchar(20) NOT NULL CONSTRAINT FK_預留沖銷主檔_工廠 REFERENCES 工廠代碼維護(工廠代碼),
+    物管編號 nvarchar(20) NOT NULL CONSTRAINT FK_預留沖銷主檔_物管 REFERENCES 物管資料維護(物管編號),
+    備註說明 nvarchar(20) NULL
+);
+CREATE TABLE 預留沖銷明細 (
+    沖銷編號 nvarchar(20) NOT NULL CONSTRAINT FK_預留沖銷明細_主檔 REFERENCES 預留沖銷主檔(沖銷編號) ON DELETE CASCADE,
+    沖銷項次 nvarchar(04) NOT NULL,
+    預留編號 nvarchar(20) NOT NULL,
+    預留項次 nvarchar(04) NOT NULL,
+    沖銷數量 int NOT NULL CONSTRAINT CK_預留沖銷明細_數量 CHECK (沖銷數量 > 0),
+    備註說明 nvarchar(20) NULL,
+    CONSTRAINT PK_預留沖銷明細 PRIMARY KEY (沖銷編號, 沖銷項次),
+    CONSTRAINT FK_預留沖銷明細_預留 FOREIGN KEY (預留編號, 預留項次) REFERENCES 物料預留明細(預留編號, 預留項次)
 );
 CREATE TABLE 庫存領用主檔 (
     領用編號 nvarchar(20) NOT NULL CONSTRAINT PK_庫存領用主檔 PRIMARY KEY,
@@ -387,3 +406,4 @@ CREATE INDEX IX_收貨退回明細_採購 ON 收貨退回明細 (採購編號, �
 CREATE INDEX IX_工單入庫明細_工單 ON 工單入庫明細 (工單編號) INCLUDE (入庫數量);
 CREATE INDEX IX_工單領料明細_工單 ON 工單領料明細 (工單編號, 物料編號) INCLUDE (領料數量);
 CREATE INDEX IX_工單回報明細_工序 ON 工單回報明細 (工單編號, 製程編號) INCLUDE (人工小時, 機器小時);
+CREATE INDEX IX_預留沖銷明細_預留 ON 預留沖銷明細 (預留編號, 預留項次) INCLUDE (沖銷數量);

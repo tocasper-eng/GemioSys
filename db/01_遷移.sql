@@ -103,3 +103,35 @@ GO
 IF OBJECT_ID(N'dbo.CK_每日庫存餘額_非負') IS NULL
     ALTER TABLE 每日庫存餘額 ADD CONSTRAINT CK_每日庫存餘額_非負 CHECK (期末數量 >= 0);
 GO
+
+/* 2026-10-07：物料預留 沖銷機制（物料預留明細.沖銷數量、預留沖銷主檔/明細） */
+IF COL_LENGTH(N'dbo.物料預留明細', N'沖銷數量') IS NULL
+    ALTER TABLE 物料預留明細 ADD 沖銷數量 int NOT NULL CONSTRAINT DF_物料預留明細_沖銷 DEFAULT 0;
+GO
+IF OBJECT_ID(N'dbo.CK_物料預留明細_超沖') IS NULL
+    ALTER TABLE 物料預留明細 ADD CONSTRAINT CK_物料預留明細_超沖 CHECK (沖銷數量 >= 0 AND 沖銷數量 <= 預留數量);
+GO
+IF OBJECT_ID(N'dbo.預留沖銷主檔') IS NULL
+CREATE TABLE 預留沖銷主檔 (
+    沖銷編號 nvarchar(20) NOT NULL CONSTRAINT PK_預留沖銷主檔 PRIMARY KEY,
+    沖銷日期 date NOT NULL CONSTRAINT DF_預留沖銷主檔_日期 DEFAULT (CAST(GETDATE() AS date)),
+    工廠代碼 nvarchar(20) NOT NULL CONSTRAINT FK_預留沖銷主檔_工廠 REFERENCES 工廠代碼維護(工廠代碼),
+    物管編號 nvarchar(20) NOT NULL CONSTRAINT FK_預留沖銷主檔_物管 REFERENCES 物管資料維護(物管編號),
+    備註說明 nvarchar(20) NULL
+);
+GO
+IF OBJECT_ID(N'dbo.預留沖銷明細') IS NULL
+CREATE TABLE 預留沖銷明細 (
+    沖銷編號 nvarchar(20) NOT NULL CONSTRAINT FK_預留沖銷明細_主檔 REFERENCES 預留沖銷主檔(沖銷編號) ON DELETE CASCADE,
+    沖銷項次 nvarchar(04) NOT NULL,
+    預留編號 nvarchar(20) NOT NULL,
+    預留項次 nvarchar(04) NOT NULL,
+    沖銷數量 int NOT NULL CONSTRAINT CK_預留沖銷明細_數量 CHECK (沖銷數量 > 0),
+    備註說明 nvarchar(20) NULL,
+    CONSTRAINT PK_預留沖銷明細 PRIMARY KEY (沖銷編號, 沖銷項次),
+    CONSTRAINT FK_預留沖銷明細_預留 FOREIGN KEY (預留編號, 預留項次) REFERENCES 物料預留明細(預留編號, 預留項次)
+);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'dbo.預留沖銷明細'), N'IX_預留沖銷明細_預留', 'IndexID') IS NULL
+    CREATE INDEX IX_預留沖銷明細_預留 ON 預留沖銷明細 (預留編號, 預留項次) INCLUDE (沖銷數量);
+GO

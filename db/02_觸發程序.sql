@@ -7,6 +7,7 @@
    4. 庫存異動明細 → 重算 每日庫存餘額（期初 + 本期入庫 − 本期出庫 = 期末，期末不可為負）
    5. 生產工單主檔 / 途程清單 → 展開 生產工序明細；工單回報明細 → 已報人時 / 已報機時
    6. 工單入庫明細 → 依入庫數量展開 / 收合 工單入庫三階
+   7. 預留沖銷明細 → 物料預留明細.沖銷數量（不影響庫存）
    ========================================================= */
 
 CREATE OR ALTER TRIGGER trg_庫存異動明細_餘額 ON 庫存異動明細
@@ -374,5 +375,20 @@ BEGIN
     FROM 生產工序明細 p JOIN k ON k.工單編號 = p.工單編號 AND k.製程編號 = p.製程編號
     OUTER APPLY (SELECT SUM(d.人工小時) AS 人工, SUM(d.機器小時) AS 機器 FROM 工單回報明細 d
                  WHERE d.工單編號 = p.工單編號 AND d.製程編號 = p.製程編號) s;
+END
+GO
+
+/* ---------- IM沖銷：預留沖銷明細（不異動庫存，只減少預留需求） ---------- */
+CREATE OR ALTER TRIGGER trg_預留沖銷明細 ON 預留沖銷明細
+AFTER INSERT, UPDATE, DELETE AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i JOIN 預留沖銷主檔 h ON h.沖銷編號 = i.沖銷編號
+               JOIN 物料預留主檔 r ON r.預留編號 = i.預留編號 WHERE r.工廠代碼 <> h.工廠代碼)
+        THROW 50008, N'預留單不屬於沖銷單的工廠', 1;
+    /* 過帳：物料預留明細.沖銷數量 = SUM(預留沖銷明細.沖銷數量) 以 預留編號 + 預留項次 */
+    WITH k AS (SELECT 預留編號, 預留項次 FROM inserted UNION SELECT 預留編號, 預留項次 FROM deleted)
+    UPDATE r SET 沖銷數量 = ISNULL((SELECT SUM(d.沖銷數量) FROM 預留沖銷明細 d WHERE d.預留編號 = r.預留編號 AND d.預留項次 = r.預留項次), 0)
+    FROM 物料預留明細 r JOIN k ON k.預留編號 = r.預留編號 AND k.預留項次 = r.預留項次;
 END
 GO
