@@ -46,6 +46,10 @@ CREATE TABLE 製程資料維護 (
     製程編號 nvarchar(20) NOT NULL CONSTRAINT PK_製程資料維護 PRIMARY KEY,
     備註說明 nvarchar(20) NULL
 );
+CREATE TABLE 工作中心維護 (
+    工作中心 nvarchar(20) NOT NULL CONSTRAINT PK_工作中心維護 PRIMARY KEY,
+    備註說明 nvarchar(20) NULL
+);
 CREATE TABLE 機台資料維護 (
     機台編號 nvarchar(20) NOT NULL CONSTRAINT PK_機台資料維護 PRIMARY KEY,
     備註說明 nvarchar(20) NULL
@@ -337,6 +341,7 @@ CREATE TABLE 工單回報主檔 (
     回報編號 nvarchar(20) NOT NULL CONSTRAINT PK_工單回報主檔 PRIMARY KEY,
     回報日期 date NOT NULL CONSTRAINT DF_工單回報主檔_日期 DEFAULT (CAST(GETDATE() AS date)),
     工廠代碼 nvarchar(20) NOT NULL CONSTRAINT FK_工單回報主檔_工廠 REFERENCES 工廠代碼維護(工廠代碼),
+    工作中心 nvarchar(20) NOT NULL CONSTRAINT FK_工單回報主檔_工作中心 REFERENCES 工作中心維護(工作中心),
     物管編號 nvarchar(20) NOT NULL CONSTRAINT FK_工單回報主檔_物管 REFERENCES 物管資料維護(物管編號),
     備註說明 nvarchar(20) NULL
 );

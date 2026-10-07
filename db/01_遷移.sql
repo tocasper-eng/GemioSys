@@ -135,3 +135,19 @@ GO
 IF INDEXPROPERTY(OBJECT_ID(N'dbo.預留沖銷明細'), N'IX_預留沖銷明細_預留', 'IndexID') IS NULL
     CREATE INDEX IX_預留沖銷明細_預留 ON 預留沖銷明細 (預留編號, 預留項次) INCLUDE (沖銷數量);
 GO
+
+/* 2026-10-07：工作中心維護；工單回報主檔 新增 工作中心 */
+IF OBJECT_ID(N'dbo.工作中心維護') IS NULL
+CREATE TABLE 工作中心維護 (
+    工作中心 nvarchar(20) NOT NULL CONSTRAINT PK_工作中心維護 PRIMARY KEY,
+    備註說明 nvarchar(20) NULL
+);
+GO
+IF COL_LENGTH(N'dbo.工單回報主檔', N'工作中心') IS NULL
+    ALTER TABLE 工單回報主檔 ADD 工作中心 nvarchar(20) NULL
+        CONSTRAINT FK_工單回報主檔_工作中心 REFERENCES 工作中心維護(工作中心);
+GO
+IF COLUMNPROPERTY(OBJECT_ID(N'dbo.工單回報主檔'), N'工作中心', 'AllowsNull') = 1
+   AND NOT EXISTS (SELECT 1 FROM 工單回報主檔 WHERE 工作中心 IS NULL)
+    ALTER TABLE 工單回報主檔 ALTER COLUMN 工作中心 nvarchar(20) NOT NULL;
+GO
