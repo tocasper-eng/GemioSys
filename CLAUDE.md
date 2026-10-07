@@ -15,7 +15,8 @@ npm run db:reset    # 刪除並重建整個資料庫（會清空資料！）
 npm start           # http://localhost:3000
 npm test            # 自動重建 <資料庫>_test + 啟動 port 3999 測試伺服器；必須全綠
 ```
-**`oav00` 已有使用者實際輸入的資料：不要對它執行 `db:reset`；只用 `db:deploy`。** 測試一律走 `npm test`（`oav00_test`）。
+**正式資料庫 `GemioSys` 已有使用者實際輸入的資料：不要對它執行 `db:reset`；只用 `db:deploy`。** 測試一律走 `npm test`（`GemioSys_test`）。舊庫 `oav00` 已停用（資料已複製到 GemioSys），不要再寫入或刪除。
+Zeabur 服務的環境變數 `DB_NAME` 必須是 `GemioSys`。
 
 連線設定在 `設定.json`（已 gitignore，範本為 `設定.example.json`）。**絕不可把 設定.json 或密碼提交到 git。**
 

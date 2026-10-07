@@ -19,7 +19,7 @@
 7. 前端或 `server.js` 有改動時重新部署 Zeabur（README「雲端部署」）；資料庫物件只靠 `db:deploy`。
 
 ## 共用資料庫注意
-`oav00` 是共用的遠端資料庫，**已有使用者資料**。`db:reset` 會 DROP DATABASE，執行前確認沒有其他人或其他 agent 正在使用；發現資料庫物件與本 repo 不一致時，先停下來詢問使用者，不要直接覆蓋。
+`GemioSys` 是共用的遠端資料庫（舊庫 `oav00` 已停用、僅保留），**已有使用者資料**。`db:reset` 會 DROP DATABASE，執行前確認沒有其他人或其他 agent 正在使用；發現資料庫物件與本 repo 不一致時，先停下來詢問使用者，不要直接覆蓋。
 
 ## 安全
 - `設定.json` 含資料庫密碼，已 gitignore，不得提交或貼到 issue / PR / 對話紀錄。

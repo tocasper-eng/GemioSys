@@ -1,6 +1,6 @@
 # GemioSys — ERP 庫存管理系統
 
-> 系統名稱：**GemioSys**．GitHub repo `tocasper-eng/GemioSys`．Zeabur 專案 `GemioSys`（https://gemiosys.zeabur.app）．資料庫 `oav00` 為既有代號，未改名
+> 系統名稱：**GemioSys**．GitHub repo `tocasper-eng/GemioSys`．Zeabur 專案 `GemioSys`（https://gemiosys.zeabur.app）．資料庫 `GemioSys`（2026-10-07 由舊庫 `oav00` 原樣複製資料後切換；`oav00` 保留未刪，不再使用）
 
 PWA 前端 + 極薄 Node 閘道 + SQL Server。**商業邏輯全部在資料庫**（資料表約束、觸發程序、視圖、預存程序），前端只負責「畫出資料庫給的畫面定義」與「斷線重傳佇列」。
 
@@ -29,7 +29,7 @@ npm test                         # 在獨立的 <資料庫>_test 跑端對端測
 
 ## 雲端部署（Zeabur）
 正式網址：**https://gemiosys.zeabur.app**（Zeabur 專案 `GemioSys`，只跑 Node 閘道；資料庫仍是 `設定.json` 中的 SQL Server）。
-- 雲端沒有 `設定.json`，改用環境變數 `DB_SERVER`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`（在 Zeabur 服務的 Variables 設定）。
+- 雲端沒有 `設定.json`，改用環境變數 `DB_SERVER`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`（= `GemioSys`；在 Zeabur 服務的 Variables 設定）。
 - Zeabur CLI 登入過期時部署會停在「A browser window will be opened」：先執行 `npx zeabur auth login`。
 - 一個服務只能有一個 `*.zeabur.app` 產生網域，新增會取代舊的（舊網址立即失效）。
 - 更新版本：先 commit，再用乾淨副本上傳（避免把 `設定.json` 傳上去）：

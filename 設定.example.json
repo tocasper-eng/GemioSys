@@ -5,7 +5,7 @@
     "port": 1433,
     "user": "<帳號>",
     "password": "<密碼>",
-    "database": "oav00",
+    "database": "GemioSys",
     "options": { "encrypt": false, "trustServerCertificate": true },
     "pool": { "max": 20 }
   }
